@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Category, Municipality, Provider, ServiceRequest, Quote, Job, Ticket, PendingProvider, Address, Review, OwnReview, ModerationReview, Notification, Report, JobEvent, JobMessage } from './types';
+import type { Category, Municipality, Provider, ServiceRequest, Quote, Job, Ticket, PendingProvider, Address, Review, OwnReview, ModerationReview, Notification, Report, JobEvent, JobMessage, NotificationPreferences, Appeal, PendingAppeal, OperationalMetrics } from './types';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -57,7 +57,7 @@ export async function saveProvider(input: {
 
 export async function workspace(userId: string) {
   const client = requireDb();
-  const [requests, quotes, jobs, tickets, provider, links, staff, addresses, ownReviews, notifications, events, messages] = await Promise.all([
+  const [requests, quotes, jobs, tickets, provider, links, staff, addresses, ownReviews, notifications, events, messages, preferences, appeals] = await Promise.all([
     client.from('service_requests').select('*').order('created_at', { ascending: false }).limit(100),
     client.from('quote_versions').select('*').order('created_at', { ascending: false }).limit(200),
     client.from('jobs').select('*').order('created_at', { ascending: false }).limit(100),
@@ -69,9 +69,11 @@ export async function workspace(userId: string) {
     client.from('reviews').select('*').limit(100),
     client.from('notifications').select('*').order('created_at', { ascending: false }).limit(50),
     client.from('job_events').select('*').order('created_at', { ascending: false }).limit(200),
-    client.from('conversation_messages').select('*').order('created_at').limit(500)
+    client.from('conversation_messages').select('*').order('created_at').limit(500),
+    client.from('notification_preferences').select('*').eq('user_id', userId).maybeSingle(),
+    client.rpc('my_appeals')
   ]);
-  for (const result of [requests, quotes, jobs, tickets, provider, links, staff, addresses, ownReviews, notifications, events, messages]) {
+  for (const result of [requests, quotes, jobs, tickets, provider, links, staff, addresses, ownReviews, notifications, events, messages, preferences, appeals]) {
     if (result.error) throw new Error(result.error.message);
   }
   const ownProvider = provider.data ? {
@@ -89,7 +91,85 @@ export async function workspace(userId: string) {
     ownReviews: (ownReviews.data ?? []) as OwnReview[],
     notifications: (notifications.data ?? []) as Notification[],
     events: (events.data ?? []) as JobEvent[],
-    messages: (messages.data ?? []) as JobMessage[]
+    messages: (messages.data ?? []) as JobMessage[],
+    preferences: (preferences.data as NotificationPreferences | null) ?? {
+      user_id: userId, in_app: true, email_updates: false, push_updates: false, updated_at: new Date().toISOString()
+    },
+    appeals: (appeals.data ?? []) as Appeal[]
+  };
+}
+
+export async function saveNotificationPreferences(userId: string, inApp: boolean) {
+  const { error } = await requireDb().from('notification_preferences').upsert({
+    user_id: userId, in_app: inApp, updated_at: new Date().toISOString()
+  }, { onConflict: 'user_id' });
+  if (error) throw new Error(error.message);
+}
+
+type PageResult<T> = { data: T[] | null; error: { message: string } | null };
+async function readAllRows<T>(readPage: (from: number, to: number) => PromiseLike<PageResult<T>>): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += 500) {
+    const result = await readPage(from, from + 499);
+    if (result.error) throw new Error(result.error.message);
+    const page = result.data ?? [];
+    rows.push(...page);
+    if (page.length < 500) return rows;
+  }
+}
+
+export async function exportMyData(userId: string, email: string | undefined) {
+  const client = requireDb();
+  const [profile, provider, providerCategories, requests, quotes, jobs, reviews, notifications, preferences, reports, opportunities, interests, appeals] = await Promise.all([
+    client.from('profiles').select('*').eq('id', userId).maybeSingle(),
+    client.from('provider_profiles').select('*').eq('id', userId).maybeSingle(),
+    client.from('provider_categories').select('*').eq('provider_id', userId),
+    readAllRows(from => client.from('service_requests').select('*').order('created_at').range(from, from + 499)),
+    readAllRows(from => client.from('quote_versions').select('*').order('created_at').range(from, from + 499)),
+    readAllRows(from => client.from('jobs').select('*').order('created_at').range(from, from + 499)),
+    readAllRows(from => client.from('reviews').select('*').order('created_at').range(from, from + 499)),
+    readAllRows(from => client.from('notifications').select('*').eq('recipient_id', userId).order('created_at').range(from, from + 499)),
+    client.from('notification_preferences').select('*').eq('user_id', userId).maybeSingle(),
+    readAllRows(from => client.from('service_reports').select('*').eq('reporter_id', userId).order('created_at').range(from, from + 499)),
+    readAllRows(from => client.from('opportunities').select('*').eq('client_id', userId).order('created_at').range(from, from + 499)),
+    readAllRows(from => client.from('opportunity_interests').select('*').eq('provider_id', userId).order('created_at').range(from, from + 499)),
+    readAllRows(from => client.from('report_appeals').select('*').eq('appellant_id', userId).order('created_at').range(from, from + 499))
+  ]);
+  for (const result of [profile, provider, providerCategories, preferences]) {
+    if (result.error) throw new Error(result.error.message);
+  }
+  const jobsRows = jobs as Job[];
+  const jobIds = jobsRows.map(job => job.id);
+  const requestIds = requests.map(request => request.id);
+  const opportunityIds = opportunities.map(opportunity => opportunity.id);
+  const [tickets, addresses, events, messages, serviceInterests] = await Promise.all([
+    jobIds.length ? readAllRows(from => client.from('tickets').select('*').in('job_id', jobIds).order('issued_at').range(from, from + 499)) : Promise.resolve([]),
+    requestIds.length ? readAllRows(from => client.from('request_addresses').select('*').in('request_id', requestIds).range(from, from + 499)) : Promise.resolve([]),
+    jobIds.length ? readAllRows(from => client.from('job_events').select('*').in('job_id', jobIds).order('created_at').range(from, from + 499)) : Promise.resolve([]),
+    jobIds.length ? readAllRows(from => client.from('conversation_messages').select('*').in('job_id', jobIds).order('created_at').range(from, from + 499)) : Promise.resolve([]),
+    opportunityIds.length ? readAllRows(from => client.from('opportunity_interests').select('*').in('opportunity_id', opportunityIds).order('created_at').range(from, from + 499)) : Promise.resolve([])
+  ]);
+  return {
+    exported_at: new Date().toISOString(),
+    account: { id: userId, email: email ?? null },
+    notice: 'Incluye registros propios y datos de servicios en los que participas, limitados por los permisos de tu sesión. No contiene registros de terceros ajenos a tu cuenta.',
+    profile: profile.data,
+    provider_profile: provider.data,
+    provider_categories: providerCategories.data ?? [],
+    service_requests: requests,
+    quote_versions: quotes,
+    jobs: jobsRows,
+    tickets,
+    request_addresses: addresses,
+    reviews,
+    job_events: events,
+    conversation_messages: messages,
+    notifications,
+    service_reports: reports,
+    notification_preferences: preferences.data,
+    opportunities,
+    opportunity_interests: [...interests, ...serviceInterests],
+    report_appeals: appeals
   };
 }
 
@@ -161,4 +241,20 @@ export async function moderateReview(jobId: string, published: boolean, reason: 
 export async function sendJobMessage(jobId: string, body: string) {
   const { error } = await requireDb().rpc('send_job_message', { p_job_id: jobId, p_body: body });
   if (error) throw new Error(error.message);
+}
+export async function fileReportAppeal(reportId: string, reason: string) {
+  const { error } = await requireDb().rpc('file_report_appeal', { p_report_id: reportId, p_reason: reason });
+  if (error) throw new Error(error.message);
+}
+export async function pendingAppeals() {
+  return value(await requireDb().rpc('pending_appeals')) as PendingAppeal[];
+}
+export async function reviewReportAppeal(id: string, status: 'accepted' | 'rejected', response: string) {
+  const { error } = await requireDb().rpc('review_report_appeal', {
+    p_appeal_id: id, p_status: status, p_response: response
+  });
+  if (error) throw new Error(error.message);
+}
+export async function operationalMetrics() {
+  return value(await requireDb().rpc('operational_metrics')) as OperationalMetrics;
 }

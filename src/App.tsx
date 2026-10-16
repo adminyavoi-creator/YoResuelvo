@@ -3,12 +3,14 @@ import type { User } from '@supabase/supabase-js';
 import {
   db, configured, catalog, workspace, saveProvider, createRequest, submitQuote,
   acceptQuote, pendingProviders, reviewProvider, saveAddress, setJobStatus,
-  createReview, markNotificationRead, pendingReports, reviewQueue, moderateReview, sendJobMessage
+  createReview, markNotificationRead, pendingReports, reviewQueue, moderateReview, sendJobMessage,
+  saveNotificationPreferences, exportMyData, fileReportAppeal, pendingAppeals, reviewReportAppeal, operationalMetrics
 } from './lib/api';
 import { demoCategories, demoMunicipalities, demoProviders } from './lib/demo';
 import type {
   Category, Municipality, Provider, ServiceRequest, Quote, Job, Ticket, PendingProvider,
-  Address, Review, OwnReview, ModerationReview, Notification, Report, JobEvent, JobMessage
+  Address, Review, OwnReview, ModerationReview, Notification, Report, JobEvent, JobMessage,
+  NotificationPreferences, Appeal, PendingAppeal, OperationalMetrics
 } from './lib/types';
 
 type Page = 'explorar' | 'solicitudes' | 'ofrecer' | 'tickets' | 'moderacion' | 'cuenta';
@@ -44,6 +46,10 @@ export default function App() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [events, setEvents] = useState<JobEvent[]>([]);
   const [messages, setMessages] = useState<JobMessage[]>([]);
+  const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
+  const [appeals, setAppeals] = useState<Appeal[]>([]);
+  const [appealsQueue, setAppealsQueue] = useState<PendingAppeal[]>([]);
+  const [metrics, setMetrics] = useState<OperationalMetrics | null>(null);
   const [search, setSearch] = useState('');
   const [city, setCity] = useState('');
   const [category, setCategory] = useState('');
@@ -71,14 +77,21 @@ export default function App() {
       setStaffRole(w.staffRole);
       setAddresses(w.addresses); setOwnReviews(w.ownReviews);
       setNotifications(w.notifications); setEvents(w.events); setMessages(w.messages);
+      setPreferences(w.preferences); setAppeals(w.appeals);
       if (w.staffRole) {
-        const [p, r, reviewItems] = await Promise.all([pendingProviders(), pendingReports(), reviewQueue()]);
+        const [p, r, reviewItems, appealItems, operational] = await Promise.all([
+          pendingProviders(), pendingReports(), reviewQueue(), pendingAppeals(), operationalMetrics()
+        ]);
         setPending(p); setReports(r); setModerationReviews(reviewItems);
+        setAppealsQueue(appealItems); setMetrics(operational);
+      } else {
+        setPending([]); setReports([]); setModerationReviews([]); setAppealsQueue([]); setMetrics(null);
       }
     } else {
       setRequests([]); setQuotes([]); setJobs([]); setTickets([]);
       setOwnProvider(null); setStaffRole(null); setPending([]); setReports([]); setModerationReviews([]);
       setAddresses([]); setOwnReviews([]); setNotifications([]); setEvents([]); setMessages([]);
+      setPreferences(null); setAppeals([]); setAppealsQueue([]); setMetrics(null);
     }
   }
   useEffect(() => {
@@ -204,7 +217,18 @@ export default function App() {
             }} />}
         </section>
       </>}
-      {page === 'cuenta' && <Account user={user} notifications={notifications} onRead={id => action(() => markNotificationRead(id), 'Aviso marcado como leído.', 'cuenta')} recovery={recovery} onRecovered={() => setRecovery(false)} busy={busy} onAction={action} />}
+      {page === 'cuenta' && <Account user={user} notifications={notifications} preferences={preferences}
+        onRead={id => action(() => markNotificationRead(id), 'Aviso marcado como leído.', 'cuenta')}
+        onSavePreferences={inApp => action(() => saveNotificationPreferences(user!.id, inApp), 'Preferencias actualizadas.', 'cuenta')}
+        onExport={() => action(async () => {
+          const content = await exportMyData(user!.id, user!.email ?? undefined);
+          const blob = new Blob([JSON.stringify(content, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url; link.download = `YoResuelvo-datos-${new Date().toISOString().slice(0,10)}.json`;
+          document.body.append(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }, 'Tu archivo de datos está listo para guardar.', 'cuenta')}
+        recovery={recovery} onRecovered={() => setRecovery(false)} busy={busy} onAction={action} />}
       {page === 'ofrecer' && <ProviderPage user={user} current={ownProvider} categories={categories} municipalities={municipalities}
         configured={configured} busy={busy} onSignIn={() => navigate('cuenta')}
         onSave={input => action(() => saveProvider(input), 'Perfil guardado. La aprobación depende de una revisión.', 'ofrecer')} />}
@@ -213,13 +237,19 @@ export default function App() {
         onExplore={() => navigate('explorar')}
         onQuote={input => action(() => submitQuote(input), 'Cotización enviada; el cliente ya puede revisarla.', 'solicitudes')}
         onAccept={id => action(() => acceptQuote(id), 'Cotización aceptada. El ticket quedó disponible.', 'tickets')} />}
-      {page === 'tickets' && <TicketsPage user={user} jobs={jobs} tickets={tickets} requests={requests} addresses={addresses} ownReviews={ownReviews} events={events} messages={messages} busy={busy}
+      {page === 'tickets' && <TicketsPage user={user} jobs={jobs} tickets={tickets} requests={requests} addresses={addresses} ownReviews={ownReviews} events={events} messages={messages} appeals={appeals} busy={busy}
         configured={configured} onSignIn={() => navigate('cuenta')}
         onAddress={(requestId, address, exists) => action(() => saveAddress(requestId, user!.id, address, exists), 'Dirección guardada para las partes del servicio.', 'tickets')}
         onStatus={(jobId, next, reason) => action(() => setJobStatus(jobId, next, reason), 'Estado actualizado y registrado.', 'tickets')}
         onReview={(jobId, rating, body) => action(() => createReview(jobId, rating, body), 'Reseña publicada para este trabajo.', 'tickets')}
-        onMessage={(jobId, body) => action(() => sendJobMessage(jobId, body), 'Mensaje enviado de forma privada.', 'tickets')} />}
+        onMessage={(jobId, body) => action(() => sendJobMessage(jobId, body), 'Mensaje enviado de forma privada.', 'tickets')}
+        onAppeal={(reportId, reason) => action(() => fileReportAppeal(reportId, reason), 'Apelación registrada para revisión.', 'tickets')} />}
       {page === 'moderacion' && staffRole && <section className="section"><p className="eyebrow">OPERACIÓN</p><h1>Perfiles por revisar</h1>
+        {metrics && <OperationalMetricsPanel metrics={metrics} municipalities={municipalities} categories={categories} />}
+        <h2>Apelaciones</h2>
+        {appealsQueue.length ? <div className="request-list">{appealsQueue.map(appeal => <AppealReviewCard key={appeal.id} appeal={appeal} busy={busy}
+          onReview={(status, response) => action(() => reviewReportAppeal(appeal.id, status, response), 'Decisión de apelación registrada.', 'moderacion')} />)}</div>
+          : <p className="empty">No hay apelaciones pendientes.</p>}
         {pending.length ? <div className="cards">{pending.map(p => <ReviewCard key={p.id} provider={p} busy={busy} onReview={(status, reason) => action(
           () => reviewProvider(p.id, status, reason), 'Decisión registrada con motivo.', 'moderacion'
         )} />)}</div> : <p className="empty">No hay perfiles pendientes.</p>}
@@ -235,13 +265,16 @@ export default function App() {
   </div>;
 }
 
-function Account({ user, notifications, onRead, recovery, onRecovered, busy, onAction }: {
-  user: User | null; notifications: Notification[]; onRead: (id: number) => Promise<void>;
+function Account({ user, notifications, preferences, onRead, onSavePreferences, onExport, recovery, onRecovered, busy, onAction }: {
+  user: User | null; notifications: Notification[]; preferences: NotificationPreferences | null;
+  onRead: (id: number) => Promise<void>; onSavePreferences: (inApp: boolean) => Promise<void>; onExport: () => Promise<void>;
   recovery: boolean; onRecovered: () => void; busy: boolean;
   onAction: (task: () => Promise<unknown>, success: string, next?: Page) => Promise<void>;
 }) {
   const [mode, setMode] = useState<'signin' | 'signup' | 'reset'>('signin');
   const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
+  const [inApp, setInApp] = useState(true);
+  useEffect(() => { if (preferences) setInApp(preferences.in_app); }, [preferences?.in_app]);
   return <section className="section narrow"><p className="eyebrow">TU CUENTA</p><h1>{recovery ? 'Define una nueva contraseña' : user ? 'Sesión activa' : mode === 'signup' ? 'Crea tu cuenta' : mode === 'reset' ? 'Recupera tu acceso' : 'Bienvenido de nuevo'}</h1>
     {recovery ? <form className="panel form" onSubmit={e => { e.preventDefault(); void onAction(async () => {
       const { error } = await db!.auth.updateUser({ password }); if (error) throw error;
@@ -250,6 +283,21 @@ function Account({ user, notifications, onRead, recovery, onRecovered, busy, onA
       : user ? <div className="panel"><p>Ingresaste como <strong>{user.email}</strong>.</p><p>Una cuenta puede solicitar y también ofrecer servicios.</p><button className="button outline" type="button" disabled={busy} onClick={() => void onAction(async () => {
       const { error } = await db!.auth.signOut(); if (error) throw error;
     }, 'Sesión cerrada.', 'explorar')}>Cerrar sesión</button>
+      <div className="privacy-panel">
+        <h2>Preferencias de avisos</h2>
+        <form className="form" onSubmit={e => { e.preventDefault(); void onSavePreferences(inApp); }}>
+          <label className="inline"><input type="checkbox" checked={inApp} onChange={e => setInApp(e.target.checked)} /> Avisos dentro de la aplicación</label>
+          <label className="inline locked"><input type="checkbox" defaultChecked={false} disabled /> Correo electrónico · proveedor pendiente</label>
+          <label className="inline locked"><input type="checkbox" defaultChecked={false} disabled /> Notificaciones push · pruebas pendientes</label>
+          <button className="button outline" type="submit" disabled={busy}>Guardar preferencias</button>
+        </form>
+        <p className="fine">Correo y push permanecen apagados hasta configurar proveedores y validar el consentimiento.</p>
+      </div>
+      <div className="privacy-panel">
+        <h2>Descargar mis datos</h2>
+        <p className="fine">Prepara un archivo JSON con tus datos y los registros de servicios en que participas, respetando los permisos de tu cuenta. El archivo se descarga en este dispositivo.</p>
+        <button type="button" className="button outline" disabled={busy} onClick={() => void onExport()}>Descargar archivo de datos</button>
+      </div>
       <h2>Avisos</h2>{notifications.length ? <div className="notice-list">{notifications.map(n => <div key={n.id} className="notice"><strong>{n.title}</strong><p>{n.body}</p><small>{date(n.created_at)}</small>{!n.read_at && <button type="button" className="text-button" onClick={() => void onRead(n.id)}>Marcar leído</button>}</div>)}</div> : <p className="fine">Sin avisos todavía.</p>}</div>
       : <form className="panel form" onSubmit={e => { e.preventDefault(); void onAction(async () => {
         if (!db) throw new Error('Conexión no configurada.');
@@ -389,13 +437,14 @@ function QuoteForm({ requestId, busy, onSubmit }: {
   </form>;
 }
 
-function TicketsPage({ user, jobs, tickets, requests, addresses, ownReviews, events, messages, busy, configured: active, onSignIn, onAddress, onStatus, onReview, onMessage }: {
+function TicketsPage({ user, jobs, tickets, requests, addresses, ownReviews, events, messages, appeals, busy, configured: active, onSignIn, onAddress, onStatus, onReview, onMessage, onAppeal }: {
   user: User | null; jobs: Job[]; tickets: Ticket[]; requests: ServiceRequest[]; addresses: Address[];
-  ownReviews: OwnReview[]; events: JobEvent[]; messages: JobMessage[]; busy: boolean; configured: boolean; onSignIn: () => void;
+  ownReviews: OwnReview[]; events: JobEvent[]; messages: JobMessage[]; appeals: Appeal[]; busy: boolean; configured: boolean; onSignIn: () => void;
   onAddress: (requestId: string, address: string, exists: boolean) => Promise<void>;
   onStatus: (jobId: string, next: string, reason: string | null) => Promise<void>;
   onReview: (jobId: string, rating: number, body: string) => Promise<void>;
   onMessage: (jobId: string, body: string) => Promise<void>;
+  onAppeal: (reportId: string, reason: string) => Promise<void>;
 }) {
   return <section className="section"><p className="eyebrow">ACUERDOS A LA VISTA</p><h1>Mis tickets</h1>
     {!active ? <p className="empty"><a href="/demo/#tickets">Ver tickets de demostración</a></p>
@@ -407,18 +456,20 @@ function TicketsPage({ user, jobs, tickets, requests, addresses, ownReviews, eve
           address={addresses.find(a => a.request_id === job.request_id)}
           review={ownReviews.find(r => r.job_id === job.id)}
           events={events.filter(e => e.job_id === job.id)}
-          messages={messages.filter(m => m.job_id === job.id)} busy={busy} onAddress={onAddress} onStatus={onStatus} onReview={onReview} onMessage={onMessage} />;
+          messages={messages.filter(m => m.job_id === job.id)} appeals={appeals.filter(a => a.job_id === job.id)}
+          busy={busy} onAddress={onAddress} onStatus={onStatus} onReview={onReview} onMessage={onMessage} onAppeal={onAppeal} />;
       })}</div> : <p className="empty">Los tickets aparecen después de aceptar una cotización.</p>}
   </section>;
 }
 
-function TicketCard({ ticket, job, user, request, address, review, events, messages, busy, onAddress, onStatus, onReview, onMessage }: {
+function TicketCard({ ticket, job, user, request, address, review, events, messages, appeals, busy, onAddress, onStatus, onReview, onMessage, onAppeal }: {
   ticket: Ticket; job: Job; user: User; request?: ServiceRequest; address?: Address; review?: OwnReview;
-  events: JobEvent[]; messages: JobMessage[]; busy: boolean;
+  events: JobEvent[]; messages: JobMessage[]; appeals: Appeal[]; busy: boolean;
   onAddress: (requestId: string, address: string, exists: boolean) => Promise<void>;
   onStatus: (jobId: string, next: string, reason: string | null) => Promise<void>;
   onReview: (jobId: string, rating: number, body: string) => Promise<void>;
   onMessage: (jobId: string, body: string) => Promise<void>;
+  onAppeal: (reportId: string, reason: string) => Promise<void>;
 }) {
   const [addressText, setAddressText] = useState(address?.address ?? '');
   const [reason, setReason] = useState(''); const [rating, setRating] = useState(5);
@@ -467,6 +518,11 @@ function TicketCard({ ticket, job, user, request, address, review, events, messa
       <button className="button primary" disabled={busy} type="submit">Publicar reseña</button>
     </form>}
     {review && <p className="fine">Reseña del trabajo: {review.rating}/5 · {review.published ? 'Publicada' : 'Oculta por moderación'}</p>}
+    {appeals.length > 0 && <section className="appeals no-print" aria-label="Apelación de resolución">
+      <h3>Resoluciones y apelaciones</h3>
+      {appeals.map(appeal => <AppealTicketCard key={appeal.report_id} appeal={appeal} busy={busy} onAppeal={onAppeal} />)}
+      <p className="fine">La apelación solicita una segunda revisión operativa; no arbitra pagos ni determina reembolsos.</p>
+    </section>}
     <section className="conversation no-print" aria-label="Mensajes privados del servicio"><h3>Mensajes privados</h3>
       {messages.length ? <div className="notice-list">{messages.map(m => <div className="notice" key={m.id}><strong>{m.sender_id === user.id ? 'Tú' : 'La otra parte'}</strong><p>{m.body}</p><small>{date(m.created_at)}</small></div>)}</div> : <p className="fine">Aún no hay mensajes. No compartas datos bancarios ni información innecesaria.</p>}
       <form className="form" onSubmit={e => { e.preventDefault(); if (messageBody.trim()) { void onMessage(job.id, messageBody); setMessageBody(''); } }}><label>Escribe a la otra parte<textarea required minLength={1} maxLength={1500} value={messageBody} onChange={e => setMessageBody(e.target.value)} /></label><button className="button outline" type="submit" disabled={busy}>Enviar mensaje</button></form>
@@ -478,6 +534,23 @@ function TicketCard({ ticket, job, user, request, address, review, events, messa
       target?.classList.add('print-target');
       window.print();
     }}>Imprimir ticket</button>
+  </article>;
+}
+
+function AppealTicketCard({ appeal, busy, onAppeal }: {
+  appeal: Appeal; busy: boolean; onAppeal: (reportId: string, reason: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState('');
+  return <article className="appeal-item">
+    <p className="fine">Resolución del {date(appeal.resolved_at)}</p>
+    {appeal.appeal_id ? <>
+      <span className="status">{appeal.appeal_status === 'pending' ? 'En revisión' : appeal.appeal_status === 'accepted' ? 'Aceptada' : 'No aceptada'}</span>
+      {appeal.appeal_reason && <p><strong>Tu solicitud:</strong> {appeal.appeal_reason}</p>}
+      {appeal.response && <p><strong>Respuesta:</strong> {appeal.response}</p>}
+    </> : appeal.can_appeal ? <form className="form" onSubmit={e => { e.preventDefault(); void onAppeal(appeal.report_id, reason); }}>
+      <label>Solicita una segunda revisión<textarea required minLength={20} maxLength={1000} value={reason} onChange={e => setReason(e.target.value)} /></label>
+      <button className="button outline" type="submit" disabled={busy || reason.trim().length < 20}>Enviar apelación</button>
+    </form> : <p className="fine">La resolución no está disponible para apelación en este momento.</p>}
   </article>;
 }
 
@@ -514,4 +587,46 @@ function ModerationReviewCard({ review, busy, onModerate }: {
       <button className="button primary" type="button" disabled={busy || reason.trim().length < 10 || review.published}
         onClick={() => void onModerate(true, reason)}>Publicar</button></div>
   </article>;
+}
+
+function AppealReviewCard({ appeal, busy, onReview }: {
+  appeal: PendingAppeal; busy: boolean;
+  onReview: (status: 'accepted' | 'rejected', response: string) => Promise<void>;
+}) {
+  const [response, setResponse] = useState('');
+  return <article className="panel"><p className="eyebrow">APELACIÓN · {date(appeal.created_at)}</p>
+    <h3>Servicio {appeal.job_id.slice(0,8)}</h3><p className="fine">Solicitante {appeal.appellant_id.slice(0,8)} · resolución {appeal.report_id.slice(0,8)}</p>
+    <p>{appeal.reason}</p>
+    <label>Respuesta para las partes<textarea required minLength={10} maxLength={1000} value={response} onChange={e => setResponse(e.target.value)} /></label>
+    <div className="card-actions">
+      <button className="button outline" type="button" disabled={busy || response.trim().length < 10}
+        onClick={() => void onReview('rejected', response)}>No aceptar</button>
+      <button className="button primary" type="button" disabled={busy || response.trim().length < 10}
+        onClick={() => void onReview('accepted', response)}>Aceptar y reabrir servicio</button>
+    </div>
+  </article>;
+}
+
+function OperationalMetricsPanel({ metrics, municipalities, categories }: {
+  metrics: OperationalMetrics; municipalities: Municipality[]; categories: Category[];
+}) {
+  const median = metrics.median_first_quote_minutes === null
+    ? 'Sin muestra' : `${Math.round(metrics.median_first_quote_minutes)} min`;
+  return <section className="metrics-panel" aria-label="Indicadores operativos agregados">
+    <h2>Indicadores operativos</h2>
+    <div className="metric-grid">
+      <div><strong>{metrics.requests_open}</strong><span>Solicitudes abiertas</span></div>
+      <div><strong>{metrics.providers_active}</strong><span>Prestadores disponibles aprobados</span></div>
+      <div><strong>{metrics.conversion_pct === null ? '—' : `${metrics.conversion_pct}%`}</strong><span>Solicitudes con contratación · {metrics.requests_total} en total</span></div>
+      <div><strong>{median}</strong><span>Mediana a primera cotización · muestra {metrics.quote_sample_size}</span></div>
+      <div><strong>{metrics.jobs_completed}</strong><span>Servicios completados</span></div>
+      <div><strong>{metrics.reports_open + metrics.appeals_open}</strong><span>Casos por revisar · {metrics.reports_open} incidencias y {metrics.appeals_open} apelaciones</span></div>
+      <div><strong>{metrics.jobs_disputed}</strong><span>Servicios en disputa</span></div>
+    </div>
+    <h3>Cobertura activa por oficio y municipio</h3>
+    {metrics.providers_by_area.length ? <div className="area-list">{metrics.providers_by_area.map(row => <div key={`${row.municipality_slug}-${row.category_slug}`}>
+      <span>{label(categories, row.category_slug)} · {label(municipalities, row.municipality_slug)}</span><strong>{row.provider_count}</strong>
+    </div>)}</div> : <p className="fine">Aún no hay prestadores aprobados y disponibles.</p>}
+    <p className="fine">Métricas agregadas del proyecto; no incluyen datos personales. La mediana se calcula solo sobre {metrics.quote_sample_size} solicitudes con cotización y no garantiza tiempos futuros.</p>
+  </section>;
 }

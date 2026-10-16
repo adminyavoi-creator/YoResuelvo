@@ -27,3 +27,14 @@ La prueba de `tests/flow.integration.sql` se ejecutó contra el proyecto indepen
 | 7 PWA/Android | Manifiesto instalable y caché de contingencia de la interfaz | Capacitor, APK y push requieren pruebas físicas Android/iOS; no se declaran listos. |
 | 8 Expansión | RPC de cobertura por municipio/oficio, calculada solo con perfiles aprobados y disponibles | No abrir un municipio sin oferta validada y responsable operativo. |
 | 9 Oportunidades | Publicación e interés filtrados por oficio, municipio y prestador aprobado; sin teléfonos ni dirección | La conversión a contratación debe seguir el flujo de solicitud/cotización/ticket. |
+
+## Incremento preparado: fases 10–13
+
+| Fase | Núcleo técnico | Límite de salida |
+| --- | --- | --- |
+| 10 Privacidad | Exportación JSON descargada localmente, consultas limitadas por RLS y preferencia de avisos dentro de la app | Correo y push siguen bloqueados en base de datos hasta tener proveedor, pruebas y consentimiento. La exportación no es un mecanismo de borrado de cuenta. |
+| 11 Apelaciones | Apelación de una resolución durante 30 días, respuesta del moderador y reapertura auditada si se acepta | Las resoluciones anteriores a esta migración no tienen fecha de resolución fiable y por eso no son apelables desde el nuevo flujo. No es arbitraje financiero. |
+| 12 Operación | Métricas agregadas de solicitudes, oferta activa, primera cotización, cierres, incidencias y apelaciones | El panel no muestra PII; porcentajes y medianas se interpretan junto a su tamaño de muestra. No se deben anunciar como resultados del piloto. |
+| 13 Calidad de release | CI compila, prueba dominio y verifica manifest, service worker y bundles estáticos | No sustituye pruebas con usuarios, revisión de accesibilidad, instalación en dispositivos ni un respaldo restaurado. |
+
+Las fases 10–13 amplían la base técnica en Supabase y la aplicación; no se declara lista la fase 5 ni autorizado el lanzamiento público. El proyecto conserva la protección SSO de Vercel y la PWA no habilita push ni correo.
