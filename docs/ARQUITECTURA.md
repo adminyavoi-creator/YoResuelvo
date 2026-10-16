@@ -1,6 +1,6 @@
-# Arquitectura prevista — no conectada
+# Arquitectura y límites del piloto
 ## Decisión
-Tomar de Oficia la estrategia de una interfaz compartida web/PWA/Android. La demo entregada usa módulos JavaScript sin dependencias para poder inspeccionarse sin credenciales. La aplicación productiva se implementará en React + TypeScript + Vite, Supabase Auth/Postgres/Storage y alojamiento Vercel. Capacitor se incorpora después del piloto web. No existe aún esquema aplicado ni integración Auth.
+La aplicación web usa React + TypeScript + Vite y Supabase Auth/Postgres en un proyecto independiente de Oficia. La demo previa permanece en `/demo/`. Storage, PWA y Capacitor se evalúan después de validar el piloto web. El esquema ya se aplicó con migraciones versionadas; el despliegue y los datos reales se describen en `ESTADO_FASES.md`.
 
 ## Modelo de datos propuesto
 | Entidad | Datos y reglas |
@@ -32,7 +32,7 @@ Storage privado, URLs firmadas breves, límite de tamaño/tipo, limpieza de meta
 Proyecto Supabase nuevo e independiente de Oficia; desarrollo/pruebas y producción separados. Vercel Preview conectado solo a datos de prueba. Variables públicas: URL y clave publicable de Supabase; secreto administrativo solo en servidor si es indispensable. Validar documentación vigente antes de instalar paquetes, generar migraciones o configurar OAuth; fijar versiones y lockfile.
 
 ## Despliegue preparado
-La configuración actual publica únicamente public/ como demo estática. No es un despliegue de la aplicación completa. Antes de producción: seleccionar conexiones, crear proyecto nuevo, preparar Auth y URLs de retorno, implementar esquema y RLS, aplicar en prueba, ejecutar asesores, probar restauración, cargar categorías reales, probar flujo completo y publicar versión aprobada. Sin pagos ni servicios externos contratados.
+Vite publica `dist/` y copia la demo anterior en `/demo/`. Antes de producción: configurar Auth y URLs de retorno, ejecutar asesores, probar restauración, validar categorías y prestadores reales, recorrer el flujo completo y aprobar el piloto. Sin pagos dentro de la aplicación.
 
 ## Pruebas requeridas
-Unitarias: estados, vigencias, cotizaciones. Integración: RLS por rol, invitados, dirección privada, archivos, concurrencia, reseñas. E2E: alta→búsqueda→cotización→contratación→ticket→cierre→reseña. Operación: duplicados por reintento, desconexión, recuperación de sesión, cancelación, disputas y eliminación. Estado actual: solo pruebas del núcleo demo, sin pruebas contra Supabase.
+Unitarias: estados, vigencias, cotizaciones. Integración: RLS por rol, invitados, dirección privada, concurrencia, reseñas. E2E: alta→búsqueda→cotización→contratación→ticket→cierre→reseña. Operación: duplicados por reintento, desconexión, recuperación de sesión, cancelación, disputas y eliminación. Estado actual: prueba SQL transaccional ejecutada contra Supabase con datos revertidos; E2E y dispositivos reales pendientes.
