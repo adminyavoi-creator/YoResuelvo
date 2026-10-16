@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Category, Municipality, Provider, ServiceRequest, Quote, Job, Ticket, PendingProvider, Address, Review, OwnReview, Notification, Report, JobEvent } from './types';
+import type { Category, Municipality, Provider, ServiceRequest, Quote, Job, Ticket, PendingProvider, Address, Review, OwnReview, ModerationReview, Notification, Report, JobEvent } from './types';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -146,4 +146,13 @@ export async function markNotificationRead(id: number) {
 }
 export async function pendingReports() {
   return value(await requireDb().rpc('pending_reports')) as Report[];
+}
+export async function reviewQueue() {
+  return value(await requireDb().rpc('review_queue')) as ModerationReview[];
+}
+export async function moderateReview(jobId: string, published: boolean, reason: string) {
+  const { error } = await requireDb().rpc('moderate_review', {
+    p_job_id: jobId, p_published: published, p_reason: reason
+  });
+  if (error) throw new Error(error.message);
 }

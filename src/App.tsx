@@ -3,12 +3,12 @@ import type { User } from '@supabase/supabase-js';
 import {
   db, configured, catalog, workspace, saveProvider, createRequest, submitQuote,
   acceptQuote, pendingProviders, reviewProvider, saveAddress, setJobStatus,
-  createReview, markNotificationRead, pendingReports
+  createReview, markNotificationRead, pendingReports, reviewQueue, moderateReview
 } from './lib/api';
 import { demoCategories, demoMunicipalities, demoProviders } from './lib/demo';
 import type {
   Category, Municipality, Provider, ServiceRequest, Quote, Job, Ticket, PendingProvider,
-  Address, Review, OwnReview, Notification, Report, JobEvent
+  Address, Review, OwnReview, ModerationReview, Notification, Report, JobEvent
 } from './lib/types';
 
 type Page = 'explorar' | 'solicitudes' | 'ofrecer' | 'tickets' | 'moderacion' | 'cuenta';
@@ -37,6 +37,7 @@ export default function App() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [pending, setPending] = useState<PendingProvider[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
+  const [moderationReviews, setModerationReviews] = useState<ModerationReview[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [ownReviews, setOwnReviews] = useState<OwnReview[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -70,12 +71,12 @@ export default function App() {
       setAddresses(w.addresses); setOwnReviews(w.ownReviews);
       setNotifications(w.notifications); setEvents(w.events);
       if (w.staffRole) {
-        const [p, r] = await Promise.all([pendingProviders(), pendingReports()]);
-        setPending(p); setReports(r);
+        const [p, r, reviewItems] = await Promise.all([pendingProviders(), pendingReports(), reviewQueue()]);
+        setPending(p); setReports(r); setModerationReviews(reviewItems);
       }
     } else {
       setRequests([]); setQuotes([]); setJobs([]); setTickets([]);
-      setOwnProvider(null); setStaffRole(null); setPending([]); setReports([]);
+      setOwnProvider(null); setStaffRole(null); setPending([]); setReports([]); setModerationReviews([]);
       setAddresses([]); setOwnReviews([]); setNotifications([]); setEvents([]);
     }
   }
@@ -223,6 +224,9 @@ export default function App() {
         <h2>Incidencias abiertas</h2>
         {reports.length ? <div className="request-list">{reports.map(report => <ReportCard key={report.id} report={report} busy={busy}
           onResolve={(next, reason) => action(() => setJobStatus(report.job_id, next, reason), 'Incidencia resuelta con motivo auditado.', 'moderacion')} />)}</div> : <p className="empty">No hay incidencias abiertas.</p>}
+        <h2>Reseñas</h2>
+        {moderationReviews.length ? <div className="request-list">{moderationReviews.map(review => <ModerationReviewCard key={review.job_id} review={review} busy={busy}
+          onModerate={(published, reason) => action(() => moderateReview(review.job_id, published, reason), 'Reseña revisada con motivo auditado.', 'moderacion')} />)}</div> : <p className="empty">Aún no hay reseñas.</p>}
       </section>}
     </main>
     <footer className="wrap"><span>YoResuelvo! · Delicias y la región</span><small>Los tickets registran acuerdos de servicio; no son facturas ni comprobantes de pago.</small></footer>
@@ -485,5 +489,20 @@ function ReportCard({ report, busy, onResolve }: {
   return <article className="panel"><p className="eyebrow">INCIDENCIA · {date(report.created_at)}</p><h3>Servicio {report.job_id.slice(0,8)}</h3><p>{report.reason}</p>
     <label>Motivo de resolución<textarea minLength={10} maxLength={1000} value={reason} onChange={e => setReason(e.target.value)} /></label>
     <div className="card-actions"><button className="button outline" disabled={busy || reason.trim().length < 10} onClick={() => void onResolve('cancelled',reason)}>Cerrar cancelado</button><button className="button primary" disabled={busy || reason.trim().length < 10} onClick={() => void onResolve('completed',reason)}>Cerrar completado</button></div>
+  </article>;
+}
+
+function ModerationReviewCard({ review, busy, onModerate }: {
+  review: ModerationReview; busy: boolean;
+  onModerate: (published: boolean, reason: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState('');
+  return <article className="panel"><p className="eyebrow">RESEÑA · {date(review.created_at)}</p>
+    <h3>{review.rating}/5 · {review.published ? 'Publicada' : 'Oculta'}</h3><p>{review.body}</p>
+    <label>Motivo de moderación<textarea minLength={10} maxLength={500} value={reason} onChange={e => setReason(e.target.value)} /></label>
+    <div className="card-actions"><button className="button outline" type="button" disabled={busy || reason.trim().length < 10 || !review.published}
+      onClick={() => void onModerate(false, reason)}>Ocultar</button>
+      <button className="button primary" type="button" disabled={busy || reason.trim().length < 10 || review.published}
+        onClick={() => void onModerate(true, reason)}>Publicar</button></div>
   </article>;
 }

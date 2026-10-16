@@ -18,3 +18,4 @@
 .history { margin: 20px 0; color: #5e4339; }
 .history summary { cursor: pointer; font-weight: 700; }
 .history li { margin: 8px 0; }
+.panel label textarea { display: block; width: 100%; min-height: 90px; margin-top: 6px; padding: 10px 12px; border: 1px solid #dbc6bb; border-radius: 10px; resize: vertical; color: var(--ink); background: white; }

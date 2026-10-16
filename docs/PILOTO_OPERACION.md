@@ -5,7 +5,7 @@
 - Confirmar URL, clave publicable, dominios de retorno de Auth y correo de confirmación y recuperación. Mantener el proyecto de Oficia completamente separado.
 - Ejecutar `npm ci`, `npm run build`, `npm test`; aplicar migraciones en orden y volver a ejecutar `tests/flow.integration.sql` en una transacción que revierte los datos.
 - Revisar los asesores de seguridad y rendimiento de Supabase. Las tablas `private` sin políticas RLS son de denegación total directa y se usan mediante funciones controladas.
-- Asignar el primer operador por consola administrativa segura; comprobar la identidad antes de modificar `private.staff_members`.
+- Asignar el primer operador por consola administrativa segura; comprobar la identidad antes de modificar `private.staff`.
 - Restaurar un respaldo en un proyecto aislado; medir tiempo y pérdida máxima, y registrar evidencia. No probar restauración encima del proyecto de uso.
 
 ## Recorrido de aceptación
