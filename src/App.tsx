@@ -14,6 +14,7 @@ import type {
 } from './lib/types';
 
 type Page = 'explorar' | 'solicitudes' | 'ofrecer' | 'tickets' | 'moderacion' | 'cuenta';
+type AuthIntent = 'cliente' | 'prestador';
 const money = (n: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n);
 const date = (v: string | null) => v
   ? new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Chihuahua' }).format(new Date(v))
@@ -59,6 +60,7 @@ export default function App() {
   const [requestCity, setRequestCity] = useState('');
   const [requestIds, setRequestIds] = useState<string[]>([]);
   const [recovery, setRecovery] = useState(false);
+  const [authIntent, setAuthIntent] = useState<AuthIntent>('cliente');
 
   async function refresh(currentUser: User | null = user) {
     if (!configured) return;
@@ -122,7 +124,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  async function action(task: () => Promise<unknown>, success: string, next?: Page) {
+  async function authAction(task: () => Promise<unknown>, success: string, next?: Page): Promise<boolean> {
     setBusy(true); setMessage(''); setError('');
     try {
       await task();
@@ -131,8 +133,12 @@ export default function App() {
       await refresh(current);
       setMessage(success);
       if (next) setPage(next);
-    } catch (e) { setError(errText(e)); }
+      return true;
+    } catch (e) { setError(errText(e)); return false; }
     finally { setBusy(false); }
+  }
+  function action(task: () => Promise<unknown>, success: string, next?: Page): Promise<void> {
+    return authAction(task, success, next).then(() => undefined);
   }
   function navigate(next: Page) {
     setPage(next); setMessage(''); setError('');
@@ -146,7 +152,7 @@ export default function App() {
   }), [providers, city, category, search, categories]);
   function startRequest(selected: Provider[]) {
     if (!configured) { window.location.href = '/demo/#catalogo'; return; }
-    if (!user) { navigate('cuenta'); return; }
+    if (!user) { setAuthIntent('cliente'); navigate('cuenta'); return; }
     const first = selected[0];
     if (!first) return;
     setRequestCategory(category || first.categories[0] || '');
@@ -218,6 +224,7 @@ export default function App() {
         </section>
       </>}
       {page === 'cuenta' && <Account user={user} notifications={notifications} preferences={preferences}
+        authIntent={authIntent} onAuthIntentChange={setAuthIntent}
         onRead={id => action(() => markNotificationRead(id), 'Aviso marcado como leído.', 'cuenta')}
         onSavePreferences={inApp => action(() => saveNotificationPreferences(user!.id, inApp), 'Preferencias actualizadas.', 'cuenta')}
         onExport={() => action(async () => {
@@ -228,9 +235,9 @@ export default function App() {
           link.href = url; link.download = `YoResuelvo-datos-${new Date().toISOString().slice(0,10)}.json`;
           document.body.append(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
         }, 'Tu archivo de datos está listo para guardar.', 'cuenta')}
-        recovery={recovery} onRecovered={() => setRecovery(false)} busy={busy} onAction={action} />}
+        recovery={recovery} onRecovered={() => setRecovery(false)} busy={busy} onAction={authAction} />}
       {page === 'ofrecer' && <ProviderPage user={user} current={ownProvider} categories={categories} municipalities={municipalities}
-        configured={configured} busy={busy} onSignIn={() => navigate('cuenta')}
+        configured={configured} busy={busy} onSignIn={() => { setAuthIntent('prestador'); navigate('cuenta'); }}
         onSave={input => action(() => saveProvider(input), 'Perfil guardado. La aprobación depende de una revisión.', 'ofrecer')} />}
       {page === 'solicitudes' && <RequestsPage user={user} requests={requests} quotes={quotes} jobs={jobs} providers={providers}
         categories={categories} municipalities={municipalities} busy={busy} configured={configured} onSignIn={() => navigate('cuenta')}
@@ -265,59 +272,135 @@ export default function App() {
   </div>;
 }
 
-function Account({ user, notifications, preferences, onRead, onSavePreferences, onExport, recovery, onRecovered, busy, onAction }: {
+function Account({ user, notifications, preferences, onRead, onSavePreferences, onExport, recovery, onRecovered, busy, onAction, authIntent, onAuthIntentChange }: {
   user: User | null; notifications: Notification[]; preferences: NotificationPreferences | null;
   onRead: (id: number) => Promise<void>; onSavePreferences: (inApp: boolean) => Promise<void>; onExport: () => Promise<void>;
   recovery: boolean; onRecovered: () => void; busy: boolean;
-  onAction: (task: () => Promise<unknown>, success: string, next?: Page) => Promise<void>;
+  authIntent: AuthIntent; onAuthIntentChange: (intent: AuthIntent) => void;
+  onAction: (task: () => Promise<unknown>, success: string, next?: Page) => Promise<boolean>;
 }) {
   const [mode, setMode] = useState<'signin' | 'signup' | 'reset'>('signin');
-  const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [localNotice, setLocalNotice] = useState('');
   const [inApp, setInApp] = useState(true);
   useEffect(() => { if (preferences) setInApp(preferences.in_app); }, [preferences?.in_app]);
-  return <section className="section narrow"><p className="eyebrow">TU CUENTA</p><h1>{recovery ? 'Define una nueva contraseña' : user ? 'Sesión activa' : mode === 'signup' ? 'Crea tu cuenta' : mode === 'reset' ? 'Recupera tu acceso' : 'Bienvenido de nuevo'}</h1>
-    {recovery ? <form className="panel form" onSubmit={e => { e.preventDefault(); void onAction(async () => {
-      const { error } = await db!.auth.updateUser({ password }); if (error) throw error;
-      onRecovered();
-    }, 'Contraseña actualizada.', 'cuenta'); }}><label>Nueva contraseña<input type="password" required minLength={8} autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} /></label><button className="button primary" type="submit" disabled={busy}>Actualizar contraseña</button></form>
-      : user ? <div className="panel"><p>Ingresaste como <strong>{user.email}</strong>.</p><p>Una cuenta puede solicitar y también ofrecer servicios.</p><button className="button outline" type="button" disabled={busy} onClick={() => void onAction(async () => {
-      const { error } = await db!.auth.signOut(); if (error) throw error;
-    }, 'Sesión cerrada.', 'explorar')}>Cerrar sesión</button>
-      <div className="privacy-panel">
-        <h2>Preferencias de avisos</h2>
-        <form className="form" onSubmit={e => { e.preventDefault(); void onSavePreferences(inApp); }}>
-          <label className="inline"><input type="checkbox" checked={inApp} onChange={e => setInApp(e.target.checked)} /> Avisos dentro de la aplicación</label>
-          <label className="inline locked"><input type="checkbox" defaultChecked={false} disabled /> Correo electrónico · proveedor pendiente</label>
-          <label className="inline locked"><input type="checkbox" defaultChecked={false} disabled /> Notificaciones push · pruebas pendientes</label>
-          <button className="button outline" type="submit" disabled={busy}>Guardar preferencias</button>
+  useEffect(() => {
+    if (recovery) { setMode('signin'); setPassword(''); setPasswordConfirm(''); setLocalNotice(''); }
+  }, [recovery]);
+
+  async function submitAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLocalNotice('');
+    const emailAddress = email.trim().toLowerCase();
+    const client = db;
+    if (!client) { setLocalNotice('El acceso estará disponible cuando se restablezca la conexión.'); return; }
+    if (recovery) {
+      if (password.length < 8) { setLocalNotice('Usa una contraseña de al menos 8 caracteres.'); return; }
+      if (password !== passwordConfirm) { setLocalNotice('Las contraseñas no coinciden.'); return; }
+      const saved = await onAction(async () => {
+        const { error } = await client.auth.updateUser({ password });
+        if (error) throw error;
+        onRecovered();
+      }, 'Contraseña actualizada.', 'cuenta');
+      if (saved) { setPassword(''); setPasswordConfirm(''); }
+      return;
+    }
+    if (mode === 'signup') {
+      if (name.trim().length < 2) { setLocalNotice('Escribe tu nombre para crear la cuenta.'); return; }
+      if (password.length < 8) { setLocalNotice('Usa una contraseña de al menos 8 caracteres.'); return; }
+      if (password !== passwordConfirm) { setLocalNotice('Las contraseñas no coinciden.'); return; }
+      const created = await onAction(async () => {
+        const { error } = await client.auth.signUp({ email: emailAddress, password, options: { data: { full_name: name.trim(), display_name: name.trim() } } });
+        if (error) throw error;
+      }, 'Cuenta creada. Revisa tu correo para confirmar el acceso.');
+      if (created) { setPassword(''); setPasswordConfirm(''); setLocalNotice('Abre el mensaje de confirmación en tu correo y después inicia sesión con esta misma cuenta.'); }
+      return;
+    }
+    if (mode === 'reset') {
+      const sent = await onAction(async () => {
+        const { error } = await client.auth.resetPasswordForEmail(emailAddress, { redirectTo: window.location.origin });
+        if (error) throw error;
+      }, 'Si existe una cuenta con ese correo, recibirás un enlace para recuperar el acceso.', 'cuenta');
+      if (sent) setLocalNotice('Revisa tu bandeja de entrada y spam. El enlace volverá a YoResuelvo para que definas una contraseña nueva.');
+      return;
+    }
+    const signedIn = await onAction(async () => {
+      const { error } = await client.auth.signInWithPassword({ email: emailAddress, password });
+      if (error) throw error;
+    }, 'Sesión iniciada.', authIntent === 'prestador' ? 'ofrecer' : 'explorar');
+    if (signedIn) setPassword('');
+  }
+
+  const displayName = String(user?.user_metadata.display_name ?? user?.user_metadata.full_name ?? user?.email ?? 'Tu cuenta');
+  return <section className="section auth-section">
+    <aside className="auth-aside">
+      <div className="auth-brand"><img src="/logo.svg" alt="" /><span>YoResuelvo<span>!</span><small>DELICIAS Y LA REGIÓN</small></span></div>
+      <p className="auth-kicker">GENTE CAPAZ, CERCA DE TI</p>
+      <h1>{recovery ? 'Recupera el control de tu cuenta.' : user ? 'Qué bueno tenerte aquí.' : mode === 'signup' ? 'Tu siguiente paso empieza aquí.' : mode === 'reset' ? 'Volvamos a abrirte el camino.' : 'Resuelve lo que sigue.'}</h1>
+      <p className="auth-lead">{user ? 'Tu cuenta te sirve para encontrar ayuda y también ofrecer tus servicios.' : 'Conecta con personas de confianza de Delicias y la región, con un acceso sencillo y seguro.'}</p>
+      {!user && !recovery && <div className="auth-intent-picker" aria-label="Elige cómo quieres empezar">
+        <button type="button" className={authIntent === 'cliente' ? 'auth-intent selected' : 'auth-intent'} aria-pressed={authIntent === 'cliente'} onClick={() => onAuthIntentChange('cliente')}>
+          <span className="auth-intent-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.4"/><path d="m16 16 4.3 4.3"/></svg></span>
+          <span><strong>Busco resolver algo</strong><small>Comparar y solicitar un servicio</small></span>
+        </button>
+        <button type="button" className={authIntent === 'prestador' ? 'auth-intent selected' : 'auth-intent'} aria-pressed={authIntent === 'prestador'} onClick={() => onAuthIntentChange('prestador')}>
+          <span className="auth-intent-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8.5h16v11H4zM8 8.5V5h8v3.5M4 13h16M10 12v2h4v-2"/></svg></span>
+          <span><strong>Quiero ofrecer servicios</strong><small>Crear un perfil profesional</small></span>
+        </button>
+        <p>Una sola cuenta puede hacer ambas cosas. Esta elección solo te lleva a la sección indicada.</p>
+      </div>}
+      <div className="auth-trust"><span aria-hidden="true">✓</span><p><strong>Acceso de Supabase Auth</strong><small>Tu contraseña no se guarda en YoResuelvo.</small></p></div>
+    </aside>
+
+    <div className="auth-main">
+      {!recovery && user ? <div className="panel account-panel">
+        <p className="eyebrow">TU ESPACIO</p><div className="account-identity"><span className="account-avatar" aria-hidden="true">{displayName.slice(0, 1).toUpperCase()}</span><div><h2>Sesión activa</h2><p>{displayName}{displayName !== user.email && user.email ? <small>{user.email}</small> : null}</p></div></div>
+        <p className="fine">Una misma cuenta te permite solicitar y ofrecer servicios cuando quieras.</p>
+        <button className="button outline" type="button" disabled={busy} onClick={() => void onAction(async () => {
+          const { error } = await db!.auth.signOut(); if (error) throw error;
+        }, 'Sesión cerrada.', 'explorar')}>Cerrar sesión</button>
+        <div className="privacy-panel">
+          <h2>Preferencias de avisos</h2>
+          <form className="form" onSubmit={e => { e.preventDefault(); void onSavePreferences(inApp); }}>
+            <label className="inline"><input type="checkbox" checked={inApp} onChange={e => setInApp(e.target.checked)} /> Avisos dentro de la aplicación</label>
+            <label className="inline locked"><input type="checkbox" defaultChecked={false} disabled /> Correo electrónico · proveedor pendiente</label>
+            <label className="inline locked"><input type="checkbox" defaultChecked={false} disabled /> Notificaciones push · pruebas pendientes</label>
+            <button className="button outline" type="submit" disabled={busy}>Guardar preferencias</button>
+          </form>
+          <p className="fine">Correo y push permanecen apagados hasta configurar proveedores y validar el consentimiento.</p>
+        </div>
+        <div className="privacy-panel">
+          <h2>Descargar mis datos</h2>
+          <p className="fine">Prepara un archivo JSON con tus datos y los registros de servicios en que participas, respetando los permisos de tu cuenta. El archivo se descarga en este dispositivo.</p>
+          <button type="button" className="button outline" disabled={busy} onClick={() => void onExport()}>Descargar archivo de datos</button>
+        </div>
+        <h2>Avisos</h2>{notifications.length ? <div className="notice-list">{notifications.map(n => <div key={n.id} className="notice"><strong>{n.title}</strong><p>{n.body}</p><small>{date(n.created_at)}</small>{!n.read_at && <button type="button" className="text-button" onClick={() => void onRead(n.id)}>Marcar leído</button>}</div>)}</div> : <p className="fine">Sin avisos todavía.</p>}
+      </div> : <div className="panel auth-card">
+        <p className="eyebrow">{recovery ? 'ACTUALIZA TU ACCESO' : mode === 'signup' ? 'CREAR CUENTA' : mode === 'reset' ? 'RECUPERACIÓN' : 'INICIAR SESIÓN'}</p>
+        <h2>{recovery ? 'Define una contraseña nueva' : mode === 'signup' ? 'Crea tu cuenta' : mode === 'reset' ? 'Recupera tu acceso' : 'Bienvenido de nuevo'}</h2>
+        <p className="auth-card-lead">{recovery ? 'Elige una contraseña segura para volver a entrar.' : mode === 'signup' ? 'Empieza con una cuenta que te sirve para pedir y ofrecer servicios.' : mode === 'reset' ? 'Te enviaremos un enlace para recuperar tu cuenta.' : 'Entra para continuar con tus solicitudes y servicios.'}</p>
+        {!recovery && <div className="auth-tabs" role="tablist" aria-label="Acceso a tu cuenta">
+          <button type="button" role="tab" aria-selected={mode === 'signin'} className={mode === 'signin' ? 'active' : ''} onClick={() => { setMode('signin'); setLocalNotice(''); }}>Iniciar sesión</button>
+          <button type="button" role="tab" aria-selected={mode === 'signup'} className={mode === 'signup' ? 'active' : ''} onClick={() => { setMode('signup'); setLocalNotice(''); }}>Crear cuenta</button>
+        </div>}
+        <form className="form auth-form" onSubmit={event => void submitAuth(event)}>
+          {mode === 'signup' && !recovery && <label>Nombre para mostrar<input type="text" required minLength={2} autoComplete="name" value={name} onChange={e => setName(e.target.value)} placeholder="Tu nombre" /></label>}
+          {!recovery && <label>Correo electrónico<input type="email" required autoCapitalize="none" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="nombre@correo.com" /></label>}
+          {(recovery || mode !== 'reset') && <label>{recovery ? 'Nueva contraseña' : 'Contraseña'}<input type="password" required minLength={8} autoComplete={recovery || mode === 'signup' ? 'new-password' : 'current-password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Al menos 8 caracteres" /></label>}
+          {(recovery || mode === 'signup') && <label>Confirma tu contraseña<input type="password" required minLength={8} autoComplete="new-password" value={passwordConfirm} onChange={e => setPasswordConfirm(e.target.value)} placeholder="Escríbela de nuevo" /></label>}
+          <button className="button primary auth-submit" disabled={busy || !configured} type="submit">{busy ? 'Un momento…' : recovery ? 'Actualizar contraseña' : mode === 'signup' ? 'Crear cuenta' : mode === 'reset' ? 'Enviar enlace' : 'Ingresar'}</button>
+          {!configured && <p className="auth-local-notice" role="status">El acceso se habilita al conectar el proyecto de Supabase.</p>}
+          {localNotice && <p className="auth-local-notice" role="status">{localNotice}</p>}
         </form>
-        <p className="fine">Correo y push permanecen apagados hasta configurar proveedores y validar el consentimiento.</p>
-      </div>
-      <div className="privacy-panel">
-        <h2>Descargar mis datos</h2>
-        <p className="fine">Prepara un archivo JSON con tus datos y los registros de servicios en que participas, respetando los permisos de tu cuenta. El archivo se descarga en este dispositivo.</p>
-        <button type="button" className="button outline" disabled={busy} onClick={() => void onExport()}>Descargar archivo de datos</button>
-      </div>
-      <h2>Avisos</h2>{notifications.length ? <div className="notice-list">{notifications.map(n => <div key={n.id} className="notice"><strong>{n.title}</strong><p>{n.body}</p><small>{date(n.created_at)}</small>{!n.read_at && <button type="button" className="text-button" onClick={() => void onRead(n.id)}>Marcar leído</button>}</div>)}</div> : <p className="fine">Sin avisos todavía.</p>}</div>
-      : <form className="panel form" onSubmit={e => { e.preventDefault(); void onAction(async () => {
-        if (!db) throw new Error('Conexión no configurada.');
-        if (mode === 'reset') {
-          const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
-          if (error) throw error;
-        } else if (mode === 'signup') {
-          const { error } = await db.auth.signUp({ email, password });
-          if (error) throw error;
-        } else {
-          const { error } = await db.auth.signInWithPassword({ email, password });
-          if (error) throw error;
-        }
-      }, mode === 'reset' ? 'Revisa tu correo para recuperar el acceso.' : mode === 'signup'
-        ? 'Cuenta creada. Revisa tu correo si se requiere confirmación.' : 'Sesión iniciada.', mode === 'reset' ? 'cuenta' : 'explorar'); }}>
-        <label>Correo electrónico<input type="email" required autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} /></label>
-        {mode !== 'reset' && <label>Contraseña<input type="password" required minLength={6} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} value={password} onChange={e => setPassword(e.target.value)} /></label>}
-        <button className="button primary" disabled={busy} type="submit">{mode === 'signup' ? 'Crear cuenta' : mode === 'reset' ? 'Enviar enlace' : 'Ingresar'}</button>
-        <div className="auth-links"><button type="button" onClick={() => setMode(mode === 'signup' ? 'signin' : 'signup')}>{mode === 'signup' ? 'Ya tengo cuenta' : 'Crear cuenta'}</button><button type="button" onClick={() => setMode(mode === 'reset' ? 'signin' : 'reset')}>{mode === 'reset' ? 'Volver' : 'Olvidé mi contraseña'}</button></div>
-      </form>}
+        <div className="auth-card-footer">
+          {recovery ? <button type="button" onClick={onRecovered}>Volver al acceso</button> : mode === 'reset' ? <button type="button" onClick={() => { setMode('signin'); setLocalNotice(''); }}>Volver al acceso</button> : mode === 'signin' ? <button type="button" onClick={() => { setMode('reset'); setLocalNotice(''); }}>Olvidé mi contraseña</button> : <span>Al crear la cuenta, confirma tu correo para proteger el acceso.</span>}
+          <span>Protegido con Supabase Auth</span>
+        </div>
+      </div>}
+    </div>
   </section>;
 }
 
