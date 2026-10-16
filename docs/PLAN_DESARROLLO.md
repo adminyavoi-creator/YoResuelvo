@@ -39,9 +39,16 @@ Solicitud: borrador, abierta, contratada, cancelada, vencida. Cotización: envia
 | 3 Contratación | 2–3 semanas | Solicitudes, cotizaciones versionadas, aceptación atómica, agenda y ticket |
 | 4 Confianza | 2 semanas | Cierre, reseñas verificadas por servicio, reportes y paneles |
 | 5 Piloto | 2 semanas | Pruebas móviles, accesibilidad, respaldo/restauración y piloto acotado |
-| 6 Expansión | Posterior | Android con Capacitor, push y municipios adicionales |
+| 6 Comunicación | Posterior | Mensajes privados por ticket, avisos y preferencias respetadas |
+| 7 PWA/Android | Posterior | Instalación web, pruebas móviles y evaluación de Capacitor/push |
+| 8 Expansión | Posterior | Cobertura verificable por municipio/oficio antes de abrir una zona |
+| 9 Oportunidades | Posterior | Bolsa acotada por oficio/zona, intereses trazables y sin contacto público |
+| 10 Privacidad | Posterior | Preferencias respetadas y exportación de datos propios bajo RLS |
+| 11 Apelaciones | Posterior | Solicitud y revisión auditada en 30 días; aceptar reabre el caso, no arbitra pagos |
+| 12 Operación | Posterior | Panel de indicadores agregados para moderación y capacidad por zona/oficio |
+| 13 Calidad de release | Continua | Smoke checks de artefactos y checklist de salida; dispositivos y piloto siguen siendo validación humana |
 
-Total orientativo: 10–12 semanas con dedicación estable; presupuesto y fechas requieren dimensionar equipo y alcance. El incremento técnico de las fases 1–4 se implementó para un piloto; la validación de la fase 5 y varios módulos del alcance completo siguen pendientes. Véase `ESTADO_FASES.md`.
+Total orientativo de las fases 0–5: 10–12 semanas con dedicación estable; las fases 6–13 son incrementos posteriores y no sustituyen la validación del piloto. El incremento técnico de las fases 1–4 se implementó para un piloto; la fase 5 y la verificación operativa con personas y dispositivos reales siguen pendientes. Véase `ESTADO_FASES.md`.
 
 ## 8. Criterios de lanzamiento
 Cero acceso cruzado entre clientes; ningún usuario puede autoasignarse administrador; aceptación concurrente produce una sola contratación; folios únicos; reseña solo de cliente con servicio completado; direcciones/adjuntos privados; historial de cambios; recuperación de cuenta; bajas y conservación definidas; ningún flujo solicita tarjeta o saldo. Pruebas en Android, iOS y escritorio. La demo no cuenta como verificación productiva.
@@ -71,7 +78,7 @@ Los roles anteriores son responsabilidades propuestas, aún sin personas asignad
 
 ## 13. Estado verificable de la entrega
 - Disponible: plan, identidad provisional, app React/TS, esquema Supabase y recorridos técnicos de las fases 1–4. Las migraciones y una prueba transaccional de permisos se ejecutaron en el proyecto independiente de YoResuelvo!.
-- Pendiente: pruebas con personas y dispositivos reales, operación de soporte, respaldo restaurado, mensajería, adjuntos y validación de rangos locales. Ver `ESTADO_FASES.md` y `PILOTO_OPERACION.md`.
+- Pendiente: pruebas con personas y dispositivos reales, operación de soporte, respaldo restaurado, adjuntos y validación de rangos locales. La mensajería, preferencias, exportación, apelaciones, métricas y smoke checks tienen implementación técnica, pero no reemplazan el piloto controlado ni el proceso humano de soporte. Ver `ESTADO_FASES.md`, `PILOTO_OPERACION.md` y `VERIFICACION_RELEASE.md`.
 - Marca: propuesta visual original pendiente de cotejar con el logotipo maestro de Yavoi! y validar con el titular.
 
 ## 14. Inicio de fase 0 — propuesta 3 Acción

@@ -29,3 +29,22 @@ export type ModerationReview = Review & { job_id: string; published: boolean };
 export type Notification = { id: number; recipient_id: string; title: string; body: string; read_at: string | null; created_at: string };
 export type Report = { id: string; job_id: string; reason: string; created_at: string };
 export type JobEvent = { id: number; job_id: string; actor_id: string; previous_status: string | null; next_status: string; reason: string | null; created_at: string };
+export type JobMessage = { id: number; job_id: string; sender_id: string; body: string; created_at: string };
+export type NotificationPreferences = {
+  user_id: string; in_app: boolean; email_updates: boolean; push_updates: boolean; updated_at: string;
+};
+export type Appeal = {
+  report_id: string; job_id: string; resolved_at: string; appeal_id: string | null;
+  appeal_reason: string | null; appeal_status: 'pending' | 'accepted' | 'rejected' | null;
+  response: string | null; appeal_created_at: string | null; can_appeal: boolean;
+};
+export type PendingAppeal = {
+  id: string; report_id: string; job_id: string; appellant_id: string; reason: string; created_at: string;
+};
+export type ProviderAreaCount = { municipality_slug: string; category_slug: string; provider_count: number };
+export type OperationalMetrics = {
+  requests_total: number; requests_open: number; requests_contracted: number; conversion_pct: number | null;
+  providers_active: number; jobs_completed: number; jobs_disputed: number; reports_open: number;
+  appeals_open: number; quote_sample_size: number; median_first_quote_minutes: number | null;
+  providers_by_area: ProviderAreaCount[];
+};
