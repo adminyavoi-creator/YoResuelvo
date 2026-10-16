@@ -2,13 +2,19 @@
 
 | Fase | Implementado | Evidencia y límite |
 | --- | --- | --- |
-| 1 Fundación | React/TS, compilación reproducible, Auth, esquema y RLS de tablas públicas | `npm ci`, `npm run build`, migraciones y prueba de aislamiento. Falta una ejecución de confirmación y recuperación por correo desde el dominio de preview. |
-| 2 Oferta | Alta editable de prestador, oficio, municipio, disponibilidad, revisión humana, catálogo y comparación | Un prestador no se autoaprueba. No hay perfiles reales cargados ni validación presencial de credenciales. |
-| 3 Contratación | Solicitud a hasta cinco prestadores, cotizaciones inmutables por versión, aceptación transaccional única, ticket y dirección privada | La prueba SQL comprueba un solo trabajo por solicitud y que un tercero no ve la dirección ni la oferta. Mensajería y adjuntos quedan fuera de este incremento. |
-| 4 Confianza | Estados, historial, reseña única tras finalización, incidencias, avisos y panel de moderación de reseñas | El circuito de apelación y las pruebas con actores reales requieren operación humana. |
+| 1 Fundación | React/TS, compilación reproducible, Auth, esquema y RLS de tablas públicas | `npm ci`, `npm run build`, migraciones y prueba de aislamiento. Falta confirmar y recuperar cuentas con correo real desde el dominio final, y cerrar la revisión focal de RPC/RLS indicada abajo. |
+| 2 Oferta | Alta editable de prestador, oficio, municipio, disponibilidad, revisión humana, catálogo y comparación | Un prestador no se autoaprueba. El catálogo aún no tiene perfiles reales aprobados ni validación presencial; no hay portafolio de imágenes. |
+| 3 Contratación | Solicitud a hasta cinco prestadores, cotizaciones inmutables por versión, aceptación transaccional única, ticket, dirección privada y mensajes privados añadidos en el incremento de comunicación | La prueba SQL bloquea una segunda contratación y el acceso de terceros a dirección/oferta. Falta E2E con personas; adjuntos permanecen pendientes. |
+| 4 Confianza | Estados, historial, reseña única tras finalización, incidencias, avisos internos, apelaciones y métricas agregadas | La lógica técnica está implementada; las pruebas con actores reales, la operación de soporte y la revisión humana de casos siguen pendientes. |
 | 5 Piloto | Guía de operación, indicadores y criterios de salida | Aún no se realizaron entrevistas, pruebas con dispositivos Android/iOS, respaldo restaurado ni una contratación real. No se declara listo para lanzamiento público. |
 
 La prueba de `tests/flow.integration.sql` se ejecutó contra el proyecto independiente de YoResuelvo! en una transacción revertida: aislamiento de dos clientes, dirección exclusiva para las partes, doble aceptación bloqueada, cuatro eventos de estado y una reseña por trabajo. El catálogo real permanece vacío hasta que una persona autorizada apruebe perfiles.
+
+Los incrementos antes descritos como fases 6–13 (mensajería, preferencias/exportación, cobertura, oportunidades, apelaciones, métricas y smoke de release) tienen implementación técnica aplicada. No equivalen a piloto terminado: correo/push y adjuntos no están habilitados, y Capacitor/Android nativo de YoResuelvo! no se ha implementado. Consulta el [plan de implementación actualizado](PLAN_IMPLEMENTACION.md).
+
+## Revisión actual de Supabase
+
+En la lectura del Security Advisor del 16 de octubre de 2026 se observaron 12 RPC `SECURITY DEFINER` ejecutables por `authenticated`, una (`published_reviews`) ejecutable por `anon`, y tres tablas `private` con RLS sin políticas. El Performance Advisor informa 25 índices no usados. Antes del piloto se debe verificar el cuerpo, `search_path`, grants y autorización interna de cada función; comprobar que la RPC pública solo devuelve reseñas publicadas; y documentar el aislamiento previsto del esquema privado. Los índices son avisos informativos para revisar después de obtener carga real, no se borran a ciegas.
 
 ## Alcance restante antes del piloto externo
 

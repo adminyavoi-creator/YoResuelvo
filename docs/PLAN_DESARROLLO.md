@@ -84,3 +84,7 @@ Los roles anteriores son responsabilidades propuestas, aún sin personas asignad
 ## 14. Inicio de fase 0 — propuesta 3 Acción
 
 La fase 0 tiene una especificación en `FASE_0_UX_UI.md`. La demo ficticia se conservó en `/demo/`, y la aplicación real usa componentes React/TypeScript con la misma paleta. La investigación con personas de Delicias, el catálogo por tareas y la definición operativa siguen pendientes.
+
+## 15. Referencia de producto e implementación: Oficia
+
+La adaptación de navegación, perfiles, cotizaciones, paneles y criterios técnicos de Oficia está documentada en [`PLAN_IMPLEMENTACION.md`](PLAN_IMPLEMENTACION.md). Ese documento actualiza la secuencia operativa y deja explícito que la fase 5 sigue pendiente; el proyecto de YoResuelvo! mantiene Auth, datos y permisos independientes.

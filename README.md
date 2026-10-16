@@ -8,6 +8,8 @@ Implementación de piloto web sobre React, TypeScript, Vite y un proyecto Supaba
 
 Las fases 1–4 tienen los flujos técnicos principales: Auth por correo, catálogo, alta y aprobación de prestadores, solicitudes, cotizaciones versionadas, aceptación atómica, ticket imprimible, dirección privada, estados de servicio, reseñas de trabajos completados, avisos e incidencias. La fase 5 requiere validación con personas y dispositivos reales antes de lanzar públicamente. Véase [estado y criterios](docs/ESTADO_FASES.md).
 
+La adaptación visual y técnica respecto de Oficia, el mapeo de pantallas y la secuencia de salida están en el [plan de implementación](docs/PLAN_IMPLEMENTACION.md).
+
 ## Desarrollo
 
 Node.js 20.19+ o 22.12+.

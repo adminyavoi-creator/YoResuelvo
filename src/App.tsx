@@ -55,6 +55,7 @@ export default function App() {
   const [city, setCity] = useState('');
   const [category, setCategory] = useState('');
   const [compared, setCompared] = useState<string[]>([]);
+  const [profilePreview, setProfilePreview] = useState<Provider | null>(null);
   const [requestOpen, setRequestOpen] = useState(false);
   const [requestCategory, setRequestCategory] = useState('');
   const [requestCity, setRequestCity] = useState('');
@@ -199,13 +200,22 @@ export default function App() {
             <label>Municipio<select value={city} onChange={e => { setCity(e.target.value); setCompared([]); }}><option value="">Toda la región</option>{municipalities.map(m => <option key={m.slug} value={m.slug}>{m.name}</option>)}</select></label>
             <label>Servicio<select value={category} onChange={e => { setCategory(e.target.value); setCompared([]); }}><option value="">Todos</option>{categories.map(c => <option key={c.slug} value={c.slug}>{c.name}</option>)}</select></label>
           </div>
+          <div className="category-shortcuts" aria-label="Explorar por categoría">
+            <p className="eyebrow">EXPLORA POR CATEGORÍA</p>
+            <div className="category-grid">{categories.slice(0, 8).map(item => <button key={item.slug} type="button"
+              className={`category-tile${category === item.slug ? ' active' : ''}`} aria-pressed={category === item.slug}
+              onClick={() => { setCategory(current => current === item.slug ? '' : item.slug); setCompared([]); }}>
+              <span className="category-icon" aria-hidden="true"><CategoryIcon slug={item.slug} /></span><span>{item.name}</span>
+            </button>)}</div>
+          </div>
           {filtered.length ? <div className="cards">{filtered.map(p => <article className="card" key={p.id}>
             <div className="card-head"><span className="avatar" aria-hidden="true">{p.display_name.slice(0, 1)}</span><div><h3>{p.display_name}</h3><small>{p.categories.map(c => label(categories, c)).join(' · ')}</small></div></div>
             <p className="place">⌖ {label(municipalities, p.municipality_slug)} · {configured ? 'Perfil aprobado' : 'Ejemplo visual'}</p>
             {configured && (() => { const ratings = reviews.filter(r => r.provider_id === p.id); return ratings.length
               ? <p className="rating">★ {(ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length).toFixed(1)} · {ratings.length} reseña{ratings.length === 1 ? '' : 's'}</p>
               : <p className="fine">Aún sin reseñas en la plataforma</p>; })()}
-            <p>{p.bio}</p><p className="fine">Cotización según tarea, materiales y traslado. {configured ? 'Precio según propuesta aceptada.' : 'Datos ficticios.'}</p>
+            <p>{p.bio}</p><button type="button" className="profile-link" onClick={() => setProfilePreview(p)}>Conocer perfil <span aria-hidden="true">→</span></button>
+            <p className="fine">Cotización según tarea, materiales y traslado. {configured ? 'Precio según propuesta aceptada.' : 'Datos ficticios.'}</p>
             <div className="card-actions"><button type="button" className="button outline" aria-pressed={compared.includes(p.id)}
               disabled={compared.length >= 3 && !compared.includes(p.id)}
               onClick={() => setCompared(ids => ids.includes(p.id) ? ids.filter(id => id !== p.id) : [...ids, p.id])}>
@@ -267,8 +277,67 @@ export default function App() {
         {moderationReviews.length ? <div className="request-list">{moderationReviews.map(review => <ModerationReviewCard key={review.job_id} review={review} busy={busy}
           onModerate={(published, reason) => action(() => moderateReview(review.job_id, published, reason), 'Reseña revisada con motivo auditado.', 'moderacion')} />)}</div> : <p className="empty">Aún no hay reseñas.</p>}
       </section>}
+      {profilePreview && <ProviderProfileDialog provider={profilePreview} categories={categories} municipalities={municipalities}
+        reviews={reviews.filter(review => review.provider_id === profilePreview.id)} compared={compared.includes(profilePreview.id)}
+        canCompare={compared.length < 3 || compared.includes(profilePreview.id)} onClose={() => setProfilePreview(null)}
+        onCompare={() => { setCompared(ids => ids.includes(profilePreview.id) ? ids : [...ids, profilePreview.id]); setProfilePreview(null); }}
+        onRequest={() => { const selected = profilePreview; setProfilePreview(null); startRequest([selected]); }} />}
     </main>
+    <nav className="mobile-tabbar" aria-label="Navegación rápida">
+      <button type="button" aria-current={page === 'explorar' ? 'page' : undefined} onClick={() => { navigate('explorar'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" /></svg><span>Inicio</span>
+      </button>
+      <button type="button" onClick={() => { if (page !== 'explorar') navigate('explorar'); window.setTimeout(() => document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth' }), 0); }}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></svg><span>Explorar</span>
+      </button>
+      <button type="button" aria-current={page === 'tickets' ? 'page' : undefined} onClick={() => navigate('tickets')}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4z" /><path d="M12 7v2m0 3v2m0 3v1" /></svg><span>Tickets</span>
+      </button>
+      <button type="button" aria-current={page === 'cuenta' ? 'page' : undefined} onClick={() => navigate('cuenta')}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg><span>Perfil</span>
+      </button>
+    </nav>
     <footer className="wrap"><span>YoResuelvo! · Delicias y la región</span><small>Los tickets registran acuerdos de servicio; no son facturas ni comprobantes de pago.</small></footer>
+  </div>;
+}
+
+function CategoryIcon({ slug }: { slug: string }) {
+  const type = slug.toLowerCase();
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    {type.includes('electric') ? <path d="m13 2-8 11h6l-1 9 9-13h-6l1-7Z" />
+      : type.includes('plom') ? <><path d="M7 3v6a5 5 0 0 0 10 0V3M5 3h4m6 0h4M12 14v2" /><path d="M12 19a2 2 0 1 0 4 0c0-1.2-2-3.2-2-3.2S12 17.8 12 19Z" /></>
+        : type.includes('cerraj') ? <><circle cx="8" cy="8" r="4" /><path d="m11 11 9 9m-5-5 2-2m0 5 2-2" /></>
+          : type.includes('limp') ? <><path d="m5 20 5-12m4 1 5 11M9 8l7 1m-9 6h12m-10 5h8" /></>
+            : type.includes('mand') ? <><path d="M4 8h16l-1 13H5L4 8Z" /><path d="M9 8V6a3 3 0 0 1 6 0v2" /></>
+              : <><path d="m14.5 6.5 3-3a4 4 0 0 1-5 5l-7.8 7.8a2.1 2.1 0 0 0 3 3l7.8-7.8a4 4 0 0 0 5-5l-3 3-3-3Z" /></>}
+  </svg>;
+}
+
+function ProviderProfileDialog({ provider, categories, municipalities, reviews, compared, canCompare, onClose, onCompare, onRequest }: {
+  provider: Provider; categories: Category[]; municipalities: Municipality[]; reviews: Review[];
+  compared: boolean; canCompare: boolean; onClose: () => void; onCompare: () => void; onRequest: () => void;
+}) {
+  const recentReviews = [...reviews].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).slice(0, 3);
+  const average = reviews.length ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1) : null;
+  return <div className="profile-dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <section className="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="provider-profile-title" tabIndex={-1}
+      onKeyDown={event => { if (event.key === 'Escape') onClose(); }}>
+      <button className="profile-dialog-close" type="button" aria-label="Cerrar perfil" autoFocus onClick={onClose}>×</button>
+      <div className="profile-dialog-head"><span className="avatar profile-avatar" aria-hidden="true">{provider.display_name.slice(0, 1)}</span>
+        <div><p className="eyebrow">PERFIL DE SERVICIO</p><h2 id="provider-profile-title">{provider.display_name}</h2>
+          <p>{provider.categories.map(id => label(categories, id)).join(' · ')}</p></div></div>
+      <div className="profile-facts"><span>⌖ {label(municipalities, provider.municipality_slug)}</span>
+        <span className={provider.available ? 'status' : 'status paused'}>{provider.available ? 'Recibe solicitudes' : 'No disponible por ahora'}</span>
+        {average ? <span className="profile-rating">★ {average} · {reviews.length} reseña{reviews.length === 1 ? '' : 's'}</span> : <span>Aún sin reseñas verificadas</span>}
+      </div>
+      <div className="profile-dialog-copy"><h3>Acerca del prestador</h3><p>{provider.bio}</p>
+        <p className="fine">El precio y el alcance se acuerdan mediante una cotización antes de iniciar. YoResuelvo! no procesa el pago.</p></div>
+      <div className="profile-reviews"><h3>Reseñas de servicios completados</h3>{recentReviews.length ? recentReviews.map((review, index) => <article key={`${review.created_at}-${index}`}>
+        <strong>★ {review.rating}/5</strong><p>{review.body}</p><small>{date(review.created_at)}</small></article>)
+        : <p className="fine">Las reseñas aparecerán aquí cuando haya servicios completados y evaluados.</p>}</div>
+      <div className="profile-dialog-actions"><button type="button" className="button outline" disabled={!canCompare && !compared} onClick={onCompare}>{compared ? '✓ En comparación' : 'Comparar'}</button>
+        <button type="button" className="button primary" onClick={onRequest}>Solicitar cotización</button></div>
+    </section>
   </div>;
 }
 
