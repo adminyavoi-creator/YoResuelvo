@@ -1,0 +1,10 @@
+{
+  "name": "YoResuelvo!",
+  "short_name": "YoResuelvo!",
+  "description": "Servicios locales en Delicias y la región.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fff7ef",
+  "theme_color": "#df5a2c",
+  "icons": [{ "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

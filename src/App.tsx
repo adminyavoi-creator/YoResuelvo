@@ -3,12 +3,12 @@ import type { User } from '@supabase/supabase-js';
 import {
   db, configured, catalog, workspace, saveProvider, createRequest, submitQuote,
   acceptQuote, pendingProviders, reviewProvider, saveAddress, setJobStatus,
-  createReview, markNotificationRead, pendingReports, reviewQueue, moderateReview
+  createReview, markNotificationRead, pendingReports, reviewQueue, moderateReview, sendJobMessage
 } from './lib/api';
 import { demoCategories, demoMunicipalities, demoProviders } from './lib/demo';
 import type {
   Category, Municipality, Provider, ServiceRequest, Quote, Job, Ticket, PendingProvider,
-  Address, Review, OwnReview, ModerationReview, Notification, Report, JobEvent
+  Address, Review, OwnReview, ModerationReview, Notification, Report, JobEvent, JobMessage
 } from './lib/types';
 
 type Page = 'explorar' | 'solicitudes' | 'ofrecer' | 'tickets' | 'moderacion' | 'cuenta';
@@ -43,6 +43,7 @@ export default function App() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [events, setEvents] = useState<JobEvent[]>([]);
+  const [messages, setMessages] = useState<JobMessage[]>([]);
   const [search, setSearch] = useState('');
   const [city, setCity] = useState('');
   const [category, setCategory] = useState('');
@@ -69,7 +70,7 @@ export default function App() {
       setOwnProvider(w.ownProvider);
       setStaffRole(w.staffRole);
       setAddresses(w.addresses); setOwnReviews(w.ownReviews);
-      setNotifications(w.notifications); setEvents(w.events);
+      setNotifications(w.notifications); setEvents(w.events); setMessages(w.messages);
       if (w.staffRole) {
         const [p, r, reviewItems] = await Promise.all([pendingProviders(), pendingReports(), reviewQueue()]);
         setPending(p); setReports(r); setModerationReviews(reviewItems);
@@ -77,7 +78,7 @@ export default function App() {
     } else {
       setRequests([]); setQuotes([]); setJobs([]); setTickets([]);
       setOwnProvider(null); setStaffRole(null); setPending([]); setReports([]); setModerationReviews([]);
-      setAddresses([]); setOwnReviews([]); setNotifications([]); setEvents([]);
+      setAddresses([]); setOwnReviews([]); setNotifications([]); setEvents([]); setMessages([]);
     }
   }
   useEffect(() => {
@@ -212,11 +213,12 @@ export default function App() {
         onExplore={() => navigate('explorar')}
         onQuote={input => action(() => submitQuote(input), 'Cotización enviada; el cliente ya puede revisarla.', 'solicitudes')}
         onAccept={id => action(() => acceptQuote(id), 'Cotización aceptada. El ticket quedó disponible.', 'tickets')} />}
-      {page === 'tickets' && <TicketsPage user={user} jobs={jobs} tickets={tickets} requests={requests} addresses={addresses} ownReviews={ownReviews} events={events} busy={busy}
+      {page === 'tickets' && <TicketsPage user={user} jobs={jobs} tickets={tickets} requests={requests} addresses={addresses} ownReviews={ownReviews} events={events} messages={messages} busy={busy}
         configured={configured} onSignIn={() => navigate('cuenta')}
         onAddress={(requestId, address, exists) => action(() => saveAddress(requestId, user!.id, address, exists), 'Dirección guardada para las partes del servicio.', 'tickets')}
         onStatus={(jobId, next, reason) => action(() => setJobStatus(jobId, next, reason), 'Estado actualizado y registrado.', 'tickets')}
-        onReview={(jobId, rating, body) => action(() => createReview(jobId, rating, body), 'Reseña publicada para este trabajo.', 'tickets')} />}
+        onReview={(jobId, rating, body) => action(() => createReview(jobId, rating, body), 'Reseña publicada para este trabajo.', 'tickets')}
+        onMessage={(jobId, body) => action(() => sendJobMessage(jobId, body), 'Mensaje enviado de forma privada.', 'tickets')} />}
       {page === 'moderacion' && staffRole && <section className="section"><p className="eyebrow">OPERACIÓN</p><h1>Perfiles por revisar</h1>
         {pending.length ? <div className="cards">{pending.map(p => <ReviewCard key={p.id} provider={p} busy={busy} onReview={(status, reason) => action(
           () => reviewProvider(p.id, status, reason), 'Decisión registrada con motivo.', 'moderacion'
@@ -387,12 +389,13 @@ function QuoteForm({ requestId, busy, onSubmit }: {
   </form>;
 }
 
-function TicketsPage({ user, jobs, tickets, requests, addresses, ownReviews, events, busy, configured: active, onSignIn, onAddress, onStatus, onReview }: {
+function TicketsPage({ user, jobs, tickets, requests, addresses, ownReviews, events, messages, busy, configured: active, onSignIn, onAddress, onStatus, onReview, onMessage }: {
   user: User | null; jobs: Job[]; tickets: Ticket[]; requests: ServiceRequest[]; addresses: Address[];
-  ownReviews: OwnReview[]; events: JobEvent[]; busy: boolean; configured: boolean; onSignIn: () => void;
+  ownReviews: OwnReview[]; events: JobEvent[]; messages: JobMessage[]; busy: boolean; configured: boolean; onSignIn: () => void;
   onAddress: (requestId: string, address: string, exists: boolean) => Promise<void>;
   onStatus: (jobId: string, next: string, reason: string | null) => Promise<void>;
   onReview: (jobId: string, rating: number, body: string) => Promise<void>;
+  onMessage: (jobId: string, body: string) => Promise<void>;
 }) {
   return <section className="section"><p className="eyebrow">ACUERDOS A LA VISTA</p><h1>Mis tickets</h1>
     {!active ? <p className="empty"><a href="/demo/#tickets">Ver tickets de demostración</a></p>
@@ -404,21 +407,23 @@ function TicketsPage({ user, jobs, tickets, requests, addresses, ownReviews, eve
           address={addresses.find(a => a.request_id === job.request_id)}
           review={ownReviews.find(r => r.job_id === job.id)}
           events={events.filter(e => e.job_id === job.id)}
-          busy={busy} onAddress={onAddress} onStatus={onStatus} onReview={onReview} />;
+          messages={messages.filter(m => m.job_id === job.id)} busy={busy} onAddress={onAddress} onStatus={onStatus} onReview={onReview} onMessage={onMessage} />;
       })}</div> : <p className="empty">Los tickets aparecen después de aceptar una cotización.</p>}
   </section>;
 }
 
-function TicketCard({ ticket, job, user, request, address, review, events, busy, onAddress, onStatus, onReview }: {
+function TicketCard({ ticket, job, user, request, address, review, events, messages, busy, onAddress, onStatus, onReview, onMessage }: {
   ticket: Ticket; job: Job; user: User; request?: ServiceRequest; address?: Address; review?: OwnReview;
-  events: JobEvent[]; busy: boolean;
+  events: JobEvent[]; messages: JobMessage[]; busy: boolean;
   onAddress: (requestId: string, address: string, exists: boolean) => Promise<void>;
   onStatus: (jobId: string, next: string, reason: string | null) => Promise<void>;
   onReview: (jobId: string, rating: number, body: string) => Promise<void>;
+  onMessage: (jobId: string, body: string) => Promise<void>;
 }) {
   const [addressText, setAddressText] = useState(address?.address ?? '');
   const [reason, setReason] = useState(''); const [rating, setRating] = useState(5);
   const [reviewBody, setReviewBody] = useState('');
+  const [messageBody, setMessageBody] = useState('');
   useEffect(() => { setAddressText(address?.address ?? ''); }, [address?.address]);
   const client = user.id === job.client_id;
   const provider = user.id === job.provider_id;
@@ -462,6 +467,10 @@ function TicketCard({ ticket, job, user, request, address, review, events, busy,
       <button className="button primary" disabled={busy} type="submit">Publicar reseña</button>
     </form>}
     {review && <p className="fine">Reseña del trabajo: {review.rating}/5 · {review.published ? 'Publicada' : 'Oculta por moderación'}</p>}
+    <section className="conversation no-print" aria-label="Mensajes privados del servicio"><h3>Mensajes privados</h3>
+      {messages.length ? <div className="notice-list">{messages.map(m => <div className="notice" key={m.id}><strong>{m.sender_id === user.id ? 'Tú' : 'La otra parte'}</strong><p>{m.body}</p><small>{date(m.created_at)}</small></div>)}</div> : <p className="fine">Aún no hay mensajes. No compartas datos bancarios ni información innecesaria.</p>}
+      <form className="form" onSubmit={e => { e.preventDefault(); if (messageBody.trim()) { void onMessage(job.id, messageBody); setMessageBody(''); } }}><label>Escribe a la otra parte<textarea required minLength={1} maxLength={1500} value={messageBody} onChange={e => setMessageBody(e.target.value)} /></label><button className="button outline" type="submit" disabled={busy}>Enviar mensaje</button></form>
+    </section>
     {events.length > 0 && <details className="history no-print"><summary>Historial de estados</summary><ol>{events.map(e => <li key={e.id}>{date(e.created_at)} · {e.previous_status ?? 'Inicio'} → {e.next_status}{e.reason ? ` · ${e.reason}` : ''}</li>)}</ol></details>}
     <button className="button outline no-print" type="button" onClick={event => {
       const target = event.currentTarget.closest('.ticket');

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Category, Municipality, Provider, ServiceRequest, Quote, Job, Ticket, PendingProvider, Address, Review, OwnReview, ModerationReview, Notification, Report, JobEvent } from './types';
+import type { Category, Municipality, Provider, ServiceRequest, Quote, Job, Ticket, PendingProvider, Address, Review, OwnReview, ModerationReview, Notification, Report, JobEvent, JobMessage } from './types';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -57,7 +57,7 @@ export async function saveProvider(input: {
 
 export async function workspace(userId: string) {
   const client = requireDb();
-  const [requests, quotes, jobs, tickets, provider, links, staff, addresses, ownReviews, notifications, events] = await Promise.all([
+  const [requests, quotes, jobs, tickets, provider, links, staff, addresses, ownReviews, notifications, events, messages] = await Promise.all([
     client.from('service_requests').select('*').order('created_at', { ascending: false }).limit(100),
     client.from('quote_versions').select('*').order('created_at', { ascending: false }).limit(200),
     client.from('jobs').select('*').order('created_at', { ascending: false }).limit(100),
@@ -68,9 +68,10 @@ export async function workspace(userId: string) {
     client.from('request_addresses').select('*').limit(100),
     client.from('reviews').select('*').limit(100),
     client.from('notifications').select('*').order('created_at', { ascending: false }).limit(50),
-    client.from('job_events').select('*').order('created_at', { ascending: false }).limit(200)
+    client.from('job_events').select('*').order('created_at', { ascending: false }).limit(200),
+    client.from('conversation_messages').select('*').order('created_at').limit(500)
   ]);
-  for (const result of [requests, quotes, jobs, tickets, provider, links, staff, addresses, ownReviews, notifications, events]) {
+  for (const result of [requests, quotes, jobs, tickets, provider, links, staff, addresses, ownReviews, notifications, events, messages]) {
     if (result.error) throw new Error(result.error.message);
   }
   const ownProvider = provider.data ? {
@@ -87,7 +88,8 @@ export async function workspace(userId: string) {
     addresses: (addresses.data ?? []) as Address[],
     ownReviews: (ownReviews.data ?? []) as OwnReview[],
     notifications: (notifications.data ?? []) as Notification[],
-    events: (events.data ?? []) as JobEvent[]
+    events: (events.data ?? []) as JobEvent[],
+    messages: (messages.data ?? []) as JobMessage[]
   };
 }
 
@@ -154,5 +156,9 @@ export async function moderateReview(jobId: string, published: boolean, reason: 
   const { error } = await requireDb().rpc('moderate_review', {
     p_job_id: jobId, p_published: published, p_reason: reason
   });
+  if (error) throw new Error(error.message);
+}
+export async function sendJobMessage(jobId: string, body: string) {
+  const { error } = await requireDb().rpc('send_job_message', { p_job_id: jobId, p_body: body });
   if (error) throw new Error(error.message);
 }

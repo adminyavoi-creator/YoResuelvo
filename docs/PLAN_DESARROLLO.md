@@ -39,9 +39,12 @@ Solicitud: borrador, abierta, contratada, cancelada, vencida. Cotización: envia
 | 3 Contratación | 2–3 semanas | Solicitudes, cotizaciones versionadas, aceptación atómica, agenda y ticket |
 | 4 Confianza | 2 semanas | Cierre, reseñas verificadas por servicio, reportes y paneles |
 | 5 Piloto | 2 semanas | Pruebas móviles, accesibilidad, respaldo/restauración y piloto acotado |
-| 6 Expansión | Posterior | Android con Capacitor, push y municipios adicionales |
+| 6 Comunicación | Posterior | Mensajes privados por ticket, avisos y preferencias respetadas |
+| 7 PWA/Android | Posterior | Instalación web, pruebas móviles y evaluación de Capacitor/push |
+| 8 Expansión | Posterior | Cobertura verificable por municipio/oficio antes de abrir una zona |
+| 9 Oportunidades | Posterior | Bolsa acotada por oficio/zona, intereses trazables y sin contacto público |
 
-Total orientativo: 10–12 semanas con dedicación estable; presupuesto y fechas requieren dimensionar equipo y alcance. El incremento técnico de las fases 1–4 se implementó para un piloto; la validación de la fase 5 y varios módulos del alcance completo siguen pendientes. Véase `ESTADO_FASES.md`.
+Total orientativo de las fases 0–5: 10–12 semanas con dedicación estable; las fases 6–9 se habilitan después del piloto y requieren medición de uso. El incremento técnico de las fases 1–4 se implementó para un piloto; la validación de la fase 5 y varios módulos del alcance completo siguen pendientes. Véase `ESTADO_FASES.md`.
 
 ## 8. Criterios de lanzamiento
 Cero acceso cruzado entre clientes; ningún usuario puede autoasignarse administrador; aceptación concurrente produce una sola contratación; folios únicos; reseña solo de cliente con servicio completado; direcciones/adjuntos privados; historial de cambios; recuperación de cuenta; bajas y conservación definidas; ningún flujo solicita tarjeta o saldo. Pruebas en Android, iOS y escritorio. La demo no cuenta como verificación productiva.

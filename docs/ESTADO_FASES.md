@@ -18,3 +18,12 @@ La prueba de `tests/flow.integration.sql` se ejecutó contra el proyecto indepen
 4. Revisar accesibilidad con teclado y lector de pantalla y probar en Android, iOS y escritorio.
 5. Restaurar un respaldo en proyecto aislado, documentar RPO/RTO, política de datos, responsable de soporte y procedimiento de apelación.
 6. Validar categorías, cobertura y rangos orientativos con prestadores locales antes de anunciarlos como oferta real.
+
+## Incremento preparado: fases 6–9
+
+| Fase | Núcleo técnico | Límite de salida |
+| --- | --- | --- |
+| 6 Comunicación | Mensajes privados ligados a un ticket, con RLS por participantes y aviso interno opcional | Correo/push siguen desactivados hasta contar con proveedor y consentimiento verificable. |
+| 7 PWA/Android | Manifiesto instalable y caché de contingencia de la interfaz | Capacitor, APK y push requieren pruebas físicas Android/iOS; no se declaran listos. |
+| 8 Expansión | RPC de cobertura por municipio/oficio, calculada solo con perfiles aprobados y disponibles | No abrir un municipio sin oferta validada y responsable operativo. |
+| 9 Oportunidades | Publicación e interés filtrados por oficio, municipio y prestador aprobado; sin teléfonos ni dirección | La conversión a contratación debe seguir el flujo de solicitud/cotización/ticket. |

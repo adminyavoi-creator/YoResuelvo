@@ -29,3 +29,4 @@ export type ModerationReview = Review & { job_id: string; published: boolean };
 export type Notification = { id: number; recipient_id: string; title: string; body: string; read_at: string | null; created_at: string };
 export type Report = { id: string; job_id: string; reason: string; created_at: string };
 export type JobEvent = { id: number; job_id: string; actor_id: string; previous_status: string | null; next_status: string; reason: string | null; created_at: string };
+export type JobMessage = { id: number; job_id: string; sender_id: string; body: string; created_at: string };
