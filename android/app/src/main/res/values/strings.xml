@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">YoResuelvo!</string>
+    <string name="title_activity_main">YoResuelvo!</string>
+    <string name="package_name">mx.yoresuelvo.app</string>
+    <string name="custom_url_scheme">mx.yoresuelvo.app</string>
+</resources>

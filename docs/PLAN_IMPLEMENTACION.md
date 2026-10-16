@@ -25,13 +25,13 @@ La revisión se basó en el repositorio público [`adminyavoi-creator/Oficia-Del
 
 **Oficia** comparte una interfaz Vite + React 19 y TypeScript entre web/PWA y Android. Usa Capacitor 8 para compilar el contenedor Android, Supabase Auth y Postgres con migraciones/RLS, Vercel para la web y Firebase Cloud Messaging mediante una Edge Function programada para push. El service worker conserva el shell de la app; los datos y acciones necesitan conexión. Sus perfiles de cliente/anfitrión quedan fijos al registrarse, y Operaciones es un permiso separado.
 
-**YoResuelvo!** ya usa Vite 8, React 19, TypeScript 5.9 y `@supabase/supabase-js` 2.117; Supabase es un proyecto independiente de Oficia, y Vercel publica el frontend. El modelo propio incluye perfiles aprobados, oficios/cobertura, solicitudes, cotizaciones versionadas, aceptación transaccional, trabajos, tickets, direcciones privadas, mensajes, reseñas, incidencias, apelaciones, preferencias y métricas. La cuenta puede solicitar y ofrecer servicios: el acceso inicial solo selecciona a dónde ir.
+**YoResuelvo!** ya usa Vite 8, React 19, TypeScript 5.9 y `@supabase/supabase-js` 2.117; Supabase es un proyecto independiente de Oficia, y Vercel publica el frontend. El modelo propio incluye perfiles aprobados, oficios/cobertura, solicitudes, cotizaciones versionadas, aceptación transaccional, trabajos, tickets, direcciones privadas, mensajes, reseñas, incidencias, apelaciones, preferencias y métricas. La cuenta puede solicitar y ofrecer servicios: la intención inicial selecciona el primer recorrido y se recuerda para el retorno.
 
-Se conservan la separación de proyectos, las migraciones y las políticas RLS de YoResuelvo!. No se trasladan datos, credenciales, configuración OAuth, cuentas bancarias ni secretos de Oficia. Capacitor y push nativo se evaluarán después del piloto; primero se cierra el uso real de la web/PWA.
+Se conservan la separación de proyectos, las migraciones y las políticas RLS de YoResuelvo!. No se trasladan datos, credenciales, configuración OAuth, cuentas bancarias ni secretos de Oficia. Para esta solicitud ya se prepararon Capacitor/Android, Google OAuth por navegador externo con enlace de retorno, almacenamiento persistente de la sesión y push web/Android con una cola protegida. La activación real requiere credenciales propias de Google y Firebase.
 
 ## Sistema de experiencia
 
-La referencia adjunta define el tablero cálido de YoResuelvo!: naranja, coral, terracota, marfil y tinta; marca visible, botones claros, tarjetas redondeadas y estados fáciles de distinguir. La secuencia de pantallas queda así:
+La referencia adjunta define el tablero cálido de YoResuelvo!: naranja, coral, terracota, marfil y tinta; marca visible, botones claros, tarjetas redondeadas y estados fáciles de distinguir. La entrada empieza con elección entre “Busco un servicio” y “Quiero ofrecer servicios”; Google es el botón principal y correo, registro y recuperación son alternativas. Una vez dentro, la cuenta puede cambiar de recorrido. La secuencia de pantallas queda así:
 
 1. **Inicio:** municipio, búsqueda de una tarea, accesos a categorías y prestadores destacados.
 2. **Perfil:** quién presta el servicio, qué realiza, zona, disponibilidad y reseñas que provienen de trabajos completados.
@@ -45,30 +45,30 @@ En esta actualización se incorporan accesos móviles inferiores, categorías co
 | Fase | Estado real | Cierre necesario |
 |---|---|---|
 | 0 · Producto y UX/UI | Propuesta 3 “Acción” y tablero visual existentes; se alinea el recorrido móvil en esta actualización. | Validar búsqueda, categorías, perfil y cotización con clientes y prestadores de Delicias; aprobar contenido y categorías iniciales. |
-| 1 · Fundación y acceso | Base técnica implementada: React/TS, Auth nativo por correo, proyecto Supabase separado, migraciones y RLS. | Probar confirmación y recuperación con correo real; revisar permisos y avisos actuales de Security Advisor. |
+| 1 · Fundación y acceso | React/TS, Supabase Auth con sesión persistente PKCE, acceso inicial por Google preparado para web/Android, correo/contraseña, alta y recuperación. | Configurar el OAuth Client propio, habilitar Google en Supabase y permitir URL web y `mx.yoresuelvo.app://auth/callback`; probar el recorrido con cuentas reales. |
 | 2 · Oferta local | Alta, revisión, categorías, cobertura, catálogo y disponibilidad implementados. | Aprobar prestadores reales y validar oficios, zona y datos publicados. Portafolio con fotos queda para una entrega posterior con consentimiento, control de acceso y moderación. |
 | 3 · Solicitud y acuerdo | Solicitud, hasta cinco invitaciones, cotizaciones inmutables, aceptación única, ticket y dirección privada implementados. | E2E con dos cuentas reales: enviar, cotizar, comparar, aceptar, cambiar estado, cancelar y revisar que terceros no vean datos privados. Adjuntos siguen pendientes. |
-| 4 · Confianza y soporte | Estados, historial, reseñas verificadas, avisos internos, mensajes, reportes, apelaciones y métricas ya tienen implementación técnica. | Probar cada camino con personas; asignar responsable de soporte y apelaciones y comprobar moderación con el operador autorizado. |
+| 4 · Confianza y soporte | Estados, historial, reseñas verificadas, avisos internos, mensajes, reportes, apelaciones, métricas y base de push están implementados. La cola y la Edge Function FCM se añadieron a Supabase. | Configurar Firebase, credenciales, consentimiento y tarea `pg_cron`; verificar entrega, preferencias, bajas de tokens, reintentos y retorno desde push en PWA/Android. |
 | 5 · Piloto controlado | **Pendiente.** Una compilación aprobada no prueba la operación en campo. | Auditoría focal de RPC y RLS; accesibilidad; pruebas Android/iOS/escritorio; respaldo restaurado; política de privacidad, conservación y soporte; contratación piloto con usuarios reales y registro de incidencias. Solo entonces decidir apertura. |
 
-Los incrementos de comunicación, privacidad, apelaciones, métricas y smoke checks que los documentos anteriores llamaban fases 6–13 están aplicados técnicamente. Push/correo transaccional y adjuntos no están habilitados; el manifiesto PWA no significa que exista una app Android nativa de YoResuelvo!.
+Los incrementos de comunicación, privacidad, apelaciones, métricas y smoke checks que los documentos anteriores llamaban fases 6–13 están aplicados técnicamente. La PWA comparte la interfaz con el proyecto Android generado por Capacitor. La canalización push está lista en código y base de datos; el envío permanece apagado hasta configurar Firebase y el programador seguro. Correo transaccional y adjuntos siguen pendientes; la fase 5 continúa abierta.
 
-### Hallazgos de seguridad para la fase 5
+### Controles de confianza para la fase 5
 
-Security Advisor de Supabase para `oilpmedqwwbbzbtzwmzl`, consultado el 16 de octubre de 2026, presenta 12 funciones `SECURITY DEFINER` ejecutables por `authenticated`, una (`published_reviews`) ejecutable por `anon`, tres tablas del esquema `private` con RLS sin políticas y 25 índices todavía no usados. Son avisos distintos: antes del piloto se revisará el código/grants/search path y las comprobaciones internas de cada RPC; se verificará que la función pública solo exponga reseñas publicadas; se documentará que las tablas privadas quedan aisladas de la Data API o se corregirán sus políticas. Los índices informativos se revisan con consultas reales antes de cualquier cambio. No se considera cerrado este control solo porque las pruebas de dominio pasen.
+Antes de un piloto se debe revisar la autorización de cada RPC y los permisos de acceso a datos, confirmar qué información es pública o privada, restaurar un respaldo y validar accesibilidad y soporte. Estos controles no se consideran cerrados por una compilación o por pruebas de dominio; la fase 5 permanece pendiente hasta completar las verificaciones con el equipo y usuarios reales.
 
 ### Secuencia inmediata
 
-1. Completar el ajuste visual móvil y la ficha de prestador sin alterar permisos ni inventar información.
-2. Correr compilación, pruebas de dominio y smoke de release; desplegar a Preview para revisar tamaños móvil/escritorio.
-3. Resolver la revisión focal de RPC/RLS y documentar cada aviso como corregido, justificado o pendiente con responsable.
-4. Probar Auth y todo el flujo con cuentas de cliente y prestador; validar mensajes, apelación y reseñas.
-5. Hacer pruebas de accesibilidad, dispositivos y restauración; preparar el piloto y medir respuesta, contratación, finalización y reportes con tamaño de muestra.
-6. Al concluir el piloto, decidir si la app Android de YoResuelvo! requiere Capacitor y qué proveedor de correo/push se configurará.
+1. Registrar un cliente OAuth de Google propio y configurar Provider Google/redirects en Supabase.
+2. Crear las apps web y Android de YoResuelvo en Firebase; poner las variables públicas en Vercel y `google-services.json` en Android sin subirlo a Git.
+3. Guardar `FIREBASE_SERVICE_ACCOUNT_JSON` como secreto de Edge Functions y la URL/JWT `service_role` del worker en Supabase Vault; después aplicar la migración de programación incluida.
+4. Construir el APK, probar login/retorno y push en PWA y Android, incluidas preferencias y cierre de sesión.
+5. Resolver revisión focal de RPC/RLS, accesibilidad, respaldo restaurado y soporte; ejecutar luego el piloto controlado de la fase 5.
 
 ## Decisiones y límites
 
 - La intención “ofrecer” no otorga aprobación, privilegios de operación ni permiso de moderación.
+- Google/Firebase son recursos separados de Oficia. El secreto OAuth y la cuenta de servicio Firebase no van en GitHub, en Vercel como valores públicos ni dentro del bundle del navegador.
 - El perfil público no muestra domicilio, teléfono particular, documentos, direcciones ni adjuntos privados.
 - Solo se muestran como verificados los resultados asociados a un servicio completado. No se inventan estrellas, reseñas, precios ni tiempos de respuesta.
 - Las cotizaciones describen el trabajo; el pago se acuerda fuera de la app. No se implementan saldo, cobro, depósito ni comisión en este plan.

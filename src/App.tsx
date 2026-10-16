@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { User } from '@supabase/supabase-js';
+import { savedAuthIntent, saveAuthIntent, signInWithGoogle, type AuthIntent } from './lib/auth';
+import { activePushForThisDevice, disableAllPushForUser, disablePushForThisDevice, enablePushForUser, forgetPushOnSignOut, pushDeliveryConfigured } from './lib/push';
 import {
   db, configured, catalog, workspace, saveProvider, createRequest, submitQuote,
   acceptQuote, pendingProviders, reviewProvider, saveAddress, setJobStatus,
@@ -14,16 +16,20 @@ import type {
 } from './lib/types';
 
 type Page = 'explorar' | 'solicitudes' | 'ofrecer' | 'tickets' | 'moderacion' | 'cuenta';
-type AuthIntent = 'cliente' | 'prestador';
 const money = (n: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n);
 const date = (v: string | null) => v
   ? new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Chihuahua' }).format(new Date(v))
   : 'Por acordar';
 const label = (items: { slug: string; name: string }[], slug: string) => items.find(i => i.slug === slug)?.name ?? slug;
 const errText = (error: unknown) => error instanceof Error ? error.message : 'No se pudo completar la operación.';
+const requestedPushPage = (): Page | null => {
+  const screen = new URLSearchParams(window.location.search).get('screen');
+  const allowed: Page[] = ['explorar','solicitudes','ofrecer','tickets','cuenta'];
+  return allowed.includes(screen as Page) ? screen as Page : null;
+};
 
 export default function App() {
-  const [page, setPage] = useState<Page>('explorar');
+  const [page, setPage] = useState<Page>(() => requestedPushPage() ?? (configured ? 'cuenta' : 'explorar'));
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -61,7 +67,7 @@ export default function App() {
   const [requestCity, setRequestCity] = useState('');
   const [requestIds, setRequestIds] = useState<string[]>([]);
   const [recovery, setRecovery] = useState(false);
-  const [authIntent, setAuthIntent] = useState<AuthIntent>('cliente');
+  const [authIntent, setAuthIntent] = useState<AuthIntent>(() => savedAuthIntent());
 
   async function refresh(currentUser: User | null = user) {
     if (!configured) return;
@@ -101,9 +107,17 @@ export default function App() {
     let active = true;
     async function initialize() {
       try {
+        const callbackUrl = new URL(window.location.href);
+        const callbackError = callbackUrl.searchParams.get('error_description') ?? callbackUrl.searchParams.get('error');
+        if (callbackError) {
+          setError(callbackError.replaceAll('+', ' '));
+          callbackUrl.searchParams.delete('error_description'); callbackUrl.searchParams.delete('error');
+          window.history.replaceState({}, '', `${callbackUrl.pathname}${callbackUrl.search}${callbackUrl.hash}`);
+        }
         const currentUser = db ? (await db.auth.getUser()).data.user : null;
         if (!active) return;
         setUser(currentUser);
+        setPage(requestedPushPage() ?? (currentUser ? (savedAuthIntent() === 'prestador' ? 'ofrecer' : 'explorar') : (configured ? 'cuenta' : 'explorar')));
         await refresh(currentUser);
       } catch (e) { if (active) setError(errText(e)); }
       finally { if (active) setReady(true); }
@@ -112,10 +126,14 @@ export default function App() {
     const subscription = db?.auth.onAuthStateChange((event, session) => {
       if (active) {
         setUser(session?.user ?? null);
+        if (event === 'SIGNED_IN') setPage(savedAuthIntent() === 'prestador' ? 'ofrecer' : 'explorar');
+        if (event === 'SIGNED_OUT') setPage('explorar');
         if (event === 'PASSWORD_RECOVERY') { setRecovery(true); setPage('cuenta'); }
       }
     }).data.subscription;
-    return () => { active = false; subscription?.unsubscribe(); };
+    const authError = (event: Event) => setError(String((event as CustomEvent<string>).detail ?? 'No se pudo completar el acceso con Google.'));
+    window.addEventListener('yoresuelvo-auth-error', authError);
+    return () => { active = false; subscription?.unsubscribe(); window.removeEventListener('yoresuelvo-auth-error', authError); };
     // One initial load; refresh after explicit mutations and auth changes below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -136,6 +154,13 @@ export default function App() {
       if (next) setPage(next);
       return true;
     } catch (e) { setError(errText(e)); return false; }
+    finally { setBusy(false); }
+  }
+  async function googleSignIn(intent: AuthIntent) {
+    setBusy(true); setMessage(''); setError('');
+    saveAuthIntent(intent);
+    try { await signInWithGoogle(intent); }
+    catch (e) { setError(errText(e)); }
     finally { setBusy(false); }
   }
   function action(task: () => Promise<unknown>, success: string, next?: Page): Promise<void> {
@@ -235,9 +260,18 @@ export default function App() {
         </section>
       </>}
       {page === 'cuenta' && <Account user={user} notifications={notifications} preferences={preferences}
-        authIntent={authIntent} onAuthIntentChange={setAuthIntent}
+        authIntent={authIntent} onAuthIntentChange={intent => { setAuthIntent(intent); saveAuthIntent(intent); }}
+        onGoogleSignIn={googleSignIn}
+        onChooseMode={intent => { setAuthIntent(intent); saveAuthIntent(intent); navigate(intent === 'prestador' ? 'ofrecer' : 'explorar'); }}
+        onPushOpen={data => {
+          const screen = data.screen;
+          const allowed: Page[] = ['explorar','solicitudes','ofrecer','tickets','cuenta'];
+          navigate(allowed.includes(screen as Page) ? screen as Page : 'cuenta');
+        }}
+        onPushForeground={item => setMessage(`${item.title}: ${item.body}`)}
         onRead={id => action(() => markNotificationRead(id), 'Aviso marcado como leído.', 'cuenta')}
         onSavePreferences={inApp => action(() => saveNotificationPreferences(user!.id, inApp), 'Preferencias actualizadas.', 'cuenta')}
+        onDisableAllPush={() => action(() => disableAllPushForUser(user!.id), 'Se pausaron los avisos push en todos tus dispositivos.', 'cuenta')}
         onExport={() => action(async () => {
           const content = await exportMyData(user!.id, user!.email ?? undefined);
           const blob = new Blob([JSON.stringify(content, null, 2)], { type: 'application/json' });
@@ -342,11 +376,16 @@ function ProviderProfileDialog({ provider, categories, municipalities, reviews, 
   </div>;
 }
 
-function Account({ user, notifications, preferences, onRead, onSavePreferences, onExport, recovery, onRecovered, busy, onAction, authIntent, onAuthIntentChange }: {
+function Account({ user, notifications, preferences, onRead, onSavePreferences, onDisableAllPush, onExport, recovery, onRecovered, busy, onAction, authIntent, onAuthIntentChange, onGoogleSignIn, onChooseMode, onPushOpen, onPushForeground }: {
   user: User | null; notifications: Notification[]; preferences: NotificationPreferences | null;
   onRead: (id: number) => Promise<void>; onSavePreferences: (inApp: boolean) => Promise<void>; onExport: () => Promise<void>;
+  onDisableAllPush: () => Promise<void>;
   recovery: boolean; onRecovered: () => void; busy: boolean;
   authIntent: AuthIntent; onAuthIntentChange: (intent: AuthIntent) => void;
+  onGoogleSignIn: (intent: AuthIntent) => Promise<void>;
+  onChooseMode: (intent: AuthIntent) => void;
+  onPushOpen: (data: Record<string, string>) => void;
+  onPushForeground: (notification: { title: string; body: string }) => void;
   onAction: (task: () => Promise<unknown>, success: string, next?: Page) => Promise<boolean>;
 }) {
   const [mode, setMode] = useState<'signin' | 'signup' | 'reset'>('signin');
@@ -356,7 +395,17 @@ function Account({ user, notifications, preferences, onRead, onSavePreferences, 
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [localNotice, setLocalNotice] = useState('');
   const [inApp, setInApp] = useState(true);
+  const [pushActive, setPushActive] = useState(false);
+  const [pushAllowed, setPushAllowed] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
   useEffect(() => { if (preferences) setInApp(preferences.in_app); }, [preferences?.in_app]);
+  useEffect(() => { if (preferences) setPushAllowed(preferences.push_updates); }, [preferences?.push_updates]);
+  useEffect(() => {
+    let active = true;
+    if (user && pushDeliveryConfigured) void activePushForThisDevice(user.id).then(value => { if (active) setPushActive(value); });
+    else setPushActive(false);
+    return () => { active = false; };
+  }, [user?.id]);
   useEffect(() => {
     if (recovery) { setMode('signin'); setPassword(''); setPasswordConfirm(''); setLocalNotice(''); }
   }, [recovery]);
@@ -404,6 +453,36 @@ function Account({ user, notifications, preferences, onRead, onSavePreferences, 
     if (signedIn) setPassword('');
   }
 
+  async function turnOnPush() {
+    if (!user) return;
+    setPushBusy(true); setLocalNotice('');
+    try {
+      const result = await enablePushForUser(user.id, { onOpen: onPushOpen, onForeground: onPushForeground });
+      if (result.enabled) {
+        setPushActive(true); setPushAllowed(true); setLocalNotice('Avisos push activados en este dispositivo.');
+      } else if (result.reason === 'denied') setLocalNotice('El permiso está bloqueado en este dispositivo. Actívalo desde los ajustes del navegador o de Android.');
+      else setLocalNotice('No se pudo registrar este dispositivo. Verifica la configuración de Firebase e inténtalo de nuevo.');
+    } catch (e) { setLocalNotice(errText(e)); }
+    finally { setPushBusy(false); }
+  }
+  async function turnOffPushHere() {
+    if (!user) return;
+    setPushBusy(true); setLocalNotice('');
+    try {
+      await disablePushForThisDevice(user.id);
+      setPushActive(false); setLocalNotice('Avisos push desactivados en este dispositivo.');
+    } catch (e) { setLocalNotice(errText(e)); }
+    finally { setPushBusy(false); }
+  }
+  async function turnOffPushEverywhere() {
+    setPushBusy(true); setLocalNotice('');
+    try {
+      await onDisableAllPush();
+      setPushAllowed(false); setLocalNotice('Los avisos push quedaron pausados en todos tus dispositivos.');
+    } catch (e) { setLocalNotice(errText(e)); }
+    finally { setPushBusy(false); }
+  }
+
   const displayName = String(user?.user_metadata.display_name ?? user?.user_metadata.full_name ?? user?.email ?? 'Tu cuenta');
   return <section className="section auth-section">
     <aside className="auth-aside">
@@ -429,7 +508,15 @@ function Account({ user, notifications, preferences, onRead, onSavePreferences, 
       {!recovery && user ? <div className="panel account-panel">
         <p className="eyebrow">TU ESPACIO</p><div className="account-identity"><span className="account-avatar" aria-hidden="true">{displayName.slice(0, 1).toUpperCase()}</span><div><h2>Sesión activa</h2><p>{displayName}{displayName !== user.email && user.email ? <small>{user.email}</small> : null}</p></div></div>
         <p className="fine">Una misma cuenta te permite solicitar y ofrecer servicios cuando quieras.</p>
+        <div className="account-mode-choice">
+          <h2>¿Qué quieres hacer ahora?</h2>
+          <div>
+            <button type="button" className={authIntent === 'cliente' ? 'mode-choice active' : 'mode-choice'} onClick={() => onChooseMode('cliente')}><strong>Buscar un servicio</strong><small>Comparar y solicitar cotizaciones</small></button>
+            <button type="button" className={authIntent === 'prestador' ? 'mode-choice active' : 'mode-choice'} onClick={() => onChooseMode('prestador')}><strong>Ofrecer servicios</strong><small>Administrar tu perfil profesional</small></button>
+          </div>
+        </div>
         <button className="button outline" type="button" disabled={busy} onClick={() => void onAction(async () => {
+          await forgetPushOnSignOut(user.id);
           const { error } = await db!.auth.signOut(); if (error) throw error;
         }, 'Sesión cerrada.', 'explorar')}>Cerrar sesión</button>
         <div className="privacy-panel">
@@ -437,10 +524,22 @@ function Account({ user, notifications, preferences, onRead, onSavePreferences, 
           <form className="form" onSubmit={e => { e.preventDefault(); void onSavePreferences(inApp); }}>
             <label className="inline"><input type="checkbox" checked={inApp} onChange={e => setInApp(e.target.checked)} /> Avisos dentro de la aplicación</label>
             <label className="inline locked"><input type="checkbox" defaultChecked={false} disabled /> Correo electrónico · proveedor pendiente</label>
-            <label className="inline locked"><input type="checkbox" defaultChecked={false} disabled /> Notificaciones push · pruebas pendientes</label>
             <button className="button outline" type="submit" disabled={busy}>Guardar preferencias</button>
           </form>
-          <p className="fine">Correo y push permanecen apagados hasta configurar proveedores y validar el consentimiento.</p>
+          <p className="fine">Los avisos por correo permanecen apagados hasta configurar y probar un proveedor.</p>
+        </div>
+        <div className="privacy-panel push-settings">
+          <h2>Notificaciones push</h2>
+          <p className="fine">Recibe avisos de solicitudes, cotizaciones, cambios de estado y reseñas en tu PWA o app Android. Tú eliges en qué dispositivos activarlos.</p>
+          {!pushDeliveryConfigured ? <p className="push-unavailable" role="status">Firebase y sus credenciales de entrega todavía necesitan configuración.</p> : null}
+          {pushDeliveryConfigured ? <>
+            <p className="push-state">{pushActive ? 'Este dispositivo está registrado.' : pushAllowed ? 'Este dispositivo está pausado; otros pueden seguir activos.' : 'Los avisos push están apagados.'}</p>
+            <button className="button primary" type="button" disabled={pushBusy} onClick={() => void (pushActive ? turnOffPushHere() : turnOnPush())}>
+              {pushBusy ? 'Un momento…' : pushActive ? 'Desactivar en este dispositivo' : 'Activar en este dispositivo'}
+            </button>
+            {pushAllowed ? <button className="text-button push-disable-all" type="button" disabled={pushBusy} onClick={() => void turnOffPushEverywhere()}>Pausar avisos en todos mis dispositivos</button> : null}
+          </> : null}
+          {localNotice && <p className="auth-local-notice" role="status">{localNotice}</p>}
         </div>
         <div className="privacy-panel">
           <h2>Descargar mis datos</h2>
@@ -456,6 +555,12 @@ function Account({ user, notifications, preferences, onRead, onSavePreferences, 
           <button type="button" role="tab" aria-selected={mode === 'signin'} className={mode === 'signin' ? 'active' : ''} onClick={() => { setMode('signin'); setLocalNotice(''); }}>Iniciar sesión</button>
           <button type="button" role="tab" aria-selected={mode === 'signup'} className={mode === 'signup' ? 'active' : ''} onClick={() => { setMode('signup'); setLocalNotice(''); }}>Crear cuenta</button>
         </div>}
+        {!recovery && mode !== 'reset' && <>
+          <button type="button" className="button google-button" disabled={busy || !configured} onClick={() => void onGoogleSignIn(authIntent)}>
+            <span className="google-g" aria-hidden="true">G</span>{busy ? 'Conectando…' : mode === 'signup' ? 'Crear cuenta con Google' : 'Continuar con Google'}
+          </button>
+          <div className="auth-divider"><span>o continúa con correo</span></div>
+        </>}
         <form className="form auth-form" onSubmit={event => void submitAuth(event)}>
           {mode === 'signup' && !recovery && <label>Nombre para mostrar<input type="text" required minLength={2} autoComplete="name" value={name} onChange={e => setName(e.target.value)} placeholder="Tu nombre" /></label>}
           {!recovery && <label>Correo electrónico<input type="email" required autoCapitalize="none" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="nombre@correo.com" /></label>}

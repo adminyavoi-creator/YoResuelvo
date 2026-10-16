@@ -1,0 +1,11 @@
+{
+	"appId": "mx.yoresuelvo.app",
+	"appName": "YoResuelvo!",
+	"webDir": "dist",
+	"android": {
+		"allowMixedContent": false
+	},
+	"server": {
+		"androidScheme": "https"
+	}
+}

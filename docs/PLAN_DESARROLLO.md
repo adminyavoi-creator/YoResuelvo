@@ -25,7 +25,7 @@ La dirección exacta se revela solo al prestador contratado. No publicar teléfo
 - Ticket imprimible con folio único, fecha, partes, alcance, cotización aceptada, cambios y estado. No es CFDI ni comprobante de cobro.
 - Reseñas de 1–5 estrellas, texto y respuesta del técnico; una por servicio completado, sin autorreseñas. Reportes y moderación trazables.
 - Panel cliente y técnico; administración de catálogo, reportes, bloqueos y métricas.
-- Notificaciones dentro de la aplicación; correo transaccional y push en fase posterior mediante proveedor configurado.
+- Avisos dentro de la app; push PWA/Android está implementado con Firebase Messaging, pendiente de credenciales y prueba de entrega. Correo transaccional sigue pendiente.
 
 ## 6. Estados y excepciones
 Solicitud: borrador, abierta, contratada, cancelada, vencida. Cotización: enviada, sustituida, aceptada, rechazada, vencida. Servicio: confirmado, agendado, en_progreso, terminacion_reportada, completado, cancelado, en_disputa. Solo el cliente confirma completado; el administrador resuelve disputas con motivo auditado. Cancelación posterior al inicio debe pasar por incidencia. La plataforma documenta desacuerdos; no procesa reembolsos ni arbitra movimientos financieros.
@@ -39,8 +39,8 @@ Solicitud: borrador, abierta, contratada, cancelada, vencida. Cotización: envia
 | 3 Contratación | 2–3 semanas | Solicitudes, cotizaciones versionadas, aceptación atómica, agenda y ticket |
 | 4 Confianza | 2 semanas | Cierre, reseñas verificadas por servicio, reportes y paneles |
 | 5 Piloto | 2 semanas | Pruebas móviles, accesibilidad, respaldo/restauración y piloto acotado |
-| 6 Comunicación | Implementación técnica aplicada | Mensajes privados por ticket y avisos dentro de la app; proveedor de correo/push aún no configurado |
-| 7 PWA/Android | PWA técnica aplicada; Android nativo pendiente | Manifiesto y shell de interfaz; evaluar Capacitor y dispositivos físicos después del piloto |
+| 6 Comunicación | Implementación técnica aplicada | Mensajes privados, avisos internos y canal push listo en código; faltan secretos Firebase y tarea programada |
+| 7 PWA/Android | PWA y proyecto Android Capacitor aplicados | Acceso y push comparten código; falta registrar OAuth/Firebase y probar en dispositivos físicos |
 | 8 Expansión | Implementación técnica aplicada | Cobertura por municipio/oficio con prestadores aprobados; abrir una zona requiere oferta y operación validadas |
 | 9 Oportunidades | Implementación técnica aplicada | Intereses y publicaciones filtrados; el contacto continúa por solicitud/cotización/ticket |
 | 10 Privacidad | Implementación técnica aplicada | Preferencias y exportación de datos propios bajo RLS; eliminación de cuenta requiere política aparte |

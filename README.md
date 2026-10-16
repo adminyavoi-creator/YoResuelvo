@@ -6,7 +6,7 @@ Plataforma regional de servicios para Delicias y municipios cercanos. La direcci
 
 Implementación de piloto web sobre React, TypeScript, Vite y un proyecto Supabase independiente. El catálogo público inicia sin prestadores reales; el alta requiere revisión humana. No se procesan pagos. La demo visual previa permanece en `/demo/` con perfiles ficticios.
 
-Las fases 1–4 tienen los flujos técnicos principales: Auth por correo, catálogo, alta y aprobación de prestadores, solicitudes, cotizaciones versionadas, aceptación atómica, ticket imprimible, dirección privada, estados de servicio, reseñas de trabajos completados, avisos e incidencias. La fase 5 requiere validación con personas y dispositivos reales antes de lanzar públicamente. Véase [estado y criterios](docs/ESTADO_FASES.md).
+Las fases 1–4 tienen los flujos técnicos principales: Auth por correo, pantalla inicial de elección de recorrido y Google OAuth preparado, sesión persistente, catálogo, alta y aprobación de prestadores, solicitudes, cotizaciones versionadas, aceptación atómica, ticket imprimible, dirección privada, reseñas, avisos e incidencias. La PWA y el proyecto Capacitor Android están conectados al mismo código. Push FCM está implementado en cliente y servidor; falta configurar las credenciales propias y hacer pruebas en dispositivos reales. La fase 5 sigue abierta. Véase [estado y criterios](docs/ESTADO_FASES.md).
 
 La adaptación visual y técnica respecto de Oficia, el mapeo de pantallas y la secuencia de salida están en el [plan de implementación](docs/PLAN_IMPLEMENTACION.md).
 
@@ -21,6 +21,8 @@ npm run dev
 ```
 
 Configurar en `.env.local` la URL y la clave **publicable** del proyecto Supabase de YoResuelvo!; nunca usar `service_role` en el cliente. Sin variables, se muestra la vista visual ficticia. Ejecutar `npm run build` y `npm test`. Las migraciones versionadas están en `supabase/migrations/`; la prueba transaccional con identidades simuladas está en `tests/flow.integration.sql` y revierte sus datos.
+
+La guía [Auth y Firebase Push](docs/AUTH_PUSH_CONFIG.md) contiene los redirects Google, variables públicas Firebase, secretos de Supabase y comandos Android. No reutilizar credenciales de Oficia.
 
 ## Despliegue
 
