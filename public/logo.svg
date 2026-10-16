@@ -1,1 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="YoResuelvo, símbolo provisional"><rect width="128" height="128" rx="30" fill="#6C35DE"/><path d="M23 28h65a16 16 0 0 1 16 16v33a16 16 0 0 1-16 16H56L30 111V93h-7z" fill="#FFF8EF"/><path d="m42 59 17 17 28-32" fill="none" stroke="#FF863D" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="YoResuelvo, símbolo conceptual">
+  <rect width="128" height="128" rx="34" fill="#F4772C"/>
+  <path d="M35 33 63 61v34M93 33 64 62" fill="none" stroke="#FFF9F4" stroke-linecap="round" stroke-linejoin="round" stroke-width="15"/>
+  <circle cx="64" cy="62" r="9" fill="#D65A1F"/>
+  <path d="M88 84h13" stroke="#FF9E66" stroke-linecap="round" stroke-width="7"/>
+</svg>

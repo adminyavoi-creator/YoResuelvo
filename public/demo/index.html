@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f4772c">
+  <meta name="description" content="Encuentra y compara servicios de tu región con YoResuelvo!">
+  <title>YoResuelvo! · Servicios y talento local</title>
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#inicio" aria-label="YoResuelvo, inicio">
+      <img src="logo.svg" alt="" width="42" height="42">
+      <span>YoResuelvo<span class="brand-bang">!</span><small>DELICIAS Y LA REGIÓN</small></span>
+    </a>
+    <nav aria-label="Navegación principal">
+      <a href="#catalogo">Explorar</a>
+      <a href="#ofrecer">Ofrecer servicios</a>
+      <a href="#tickets">Mis tickets</a>
+    </nav>
+    <a class="header-cta" href="#catalogo">Encuentra ayuda <span aria-hidden="true">↗</span></a>
+  </header>
+
+  <main id="inicio">
+    <div class="demo-banner"><span class="demo-dot"></span> Vista de demostración <span>Perfiles y reseñas ficticios</span></div>
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="eyebrow-mark">●</span> GENTE CAPAZ, CERCA DE TI</p>
+        <h1 id="hero-title">Eso que necesitas.<br><span>Ya sabes quién</span> te ayuda.</h1>
+        <p class="hero-intro">Encuentra personas de tu región, compara su experiencia y acuerda cada detalle antes de comenzar.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#catalogo">Buscar un servicio <span aria-hidden="true">→</span></a>
+          <a class="button button-quiet" href="#ofrecer">Quiero ofrecer mis servicios</a>
+        </div>
+        <div class="hero-note"><span aria-hidden="true">✳</span> Sin pagos dentro de la app. El acuerdo es directo con el prestador.</div>
+      </div>
+      <div class="hero-art" aria-label="Personas conectando para resolver servicios locales">
+        <div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div>
+        <div class="art-sticker sticker-top">Talento <b>local</b></div>
+        <div class="art-core"><span class="art-y"><i></i><i></i></span><span>Y</span></div>
+        <div class="art-person person-one"><span class="person-head">●</span><span class="person-body">⌁</span></div>
+        <div class="art-person person-two"><span class="person-head">●</span><span class="person-body">⌁</span></div>
+        <div class="art-sticker sticker-bottom"><span class="starburst">✳</span> Una mano<br>siempre suma</div>
+        <div class="art-caption">Delicias <span>·</span> Meoqui <span>·</span> Saucillo <span>·</span> Rosales</div>
+      </div>
+    </section>
+
+    <section id="catalogo" class="catalog-section" aria-labelledby="catalog-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">ENCUENTRA A TU PERSONA</p><h2 id="catalog-title">¿Qué quieres resolver?</h2><p>Explora profesionales independientes de tu zona.</p></div>
+        <a class="text-link" href="#ofrecer">¿Eres profesional? <span>Únete a la comunidad →</span></a>
+      </div>
+      <form id="filters" class="search-panel">
+        <label class="search-field"><span class="field-icon" aria-hidden="true">⌕</span><span class="sr-only">Busca un oficio o trabajo</span><input id="q" type="search" placeholder="Ej. instalar un contacto, reparar fuga…"></label>
+        <label><span class="sr-only">Municipio</span><select id="city"><option value="">Toda la región</option><option>Delicias</option><option>Meoqui</option><option>Saucillo</option><option>Rosales</option></select></label>
+        <label><span class="sr-only">Categoría</span><select id="category"><option value="">Todos los servicios</option><option>Electricidad</option><option>Plomería</option><option>Cerrajería</option><option>Mandados</option><option>Limpieza</option></select></label>
+        <button class="button button-search" type="submit">Buscar</button>
+      </form>
+      <div class="category-row" aria-label="Categorías populares">
+        <a href="#cards" data-category="Electricidad"><span class="category-icon">ϟ</span> Electricidad</a>
+        <a href="#cards" data-category="Plomería"><span class="category-icon">♧</span> Plomería</a>
+        <a href="#cards" data-category="Cerrajería"><span class="category-icon">⚿</span> Cerrajería</a>
+        <a href="#cards" data-category="Mandados"><span class="category-icon">↗</span> Mandados</a>
+        <a href="#cards" data-category="Limpieza"><span class="category-icon">✳</span> Limpieza</a>
+      </div>
+      <div class="results-heading"><p id="count" role="status"></p><span>Hasta 3 perfiles para comparar</span></div>
+      <div id="cards" class="provider-grid"></div>
+    </section>
+
+    <section id="comparison" class="comparison-section" hidden>
+      <div class="section-heading"><div><p class="eyebrow">MISMA TAREA, DISTINTAS OPCIONES</p><h2>Compara con calma</h2></div><button id="clear-compare" class="button button-quiet" type="button">Limpiar selección</button></div>
+      <div class="comparison-table"><table><thead><tr><th>Prestador</th><th>Zona</th><th>Reseñas demo</th><th>Referencia demo</th></tr></thead><tbody id="compare-body"></tbody></table></div>
+      <p class="fine">Las cifras son ficticias y no representan un rango de mercado validado.</p>
+    </section>
+
+    <section class="range-note" aria-label="Información sobre rangos de precios">
+      <div class="range-icon">↗</div><div><p class="eyebrow">TRANSPARENCIA ANTES DE EMPEZAR</p><h2>El precio depende del trabajo.</h2><p>La propuesta contempla rangos orientativos por tarea y municipio. Se publicarán cuando exista una muestra local suficiente; cada profesional define su cotización y alcance.</p></div>
+      <div class="range-stamp"><span>Tu acuerdo</span><b>va primero</b><small>Alcance · materiales · horario</small></div>
+    </section>
+
+    <section id="ofrecer" class="join-section">
+      <div><p class="eyebrow">TU EXPERIENCIA TAMBIÉN CUENTA</p><h2>Lo que sabes hacer,<br>alguien lo necesita.</h2><p>Una forma sencilla de mostrar tus habilidades y conectar con personas que buscan tu trabajo.</p></div>
+      <a class="button button-light" href="#ruta-prestador">Conoce cómo funciona <span aria-hidden="true">→</span></a>
+    </section>
+
+    <section id="ruta-prestador" class="provider-journey" aria-labelledby="journey-title">
+      <div class="section-heading"><div><p class="eyebrow">RUTA PARA PRESTADORES</p><h2 id="journey-title">Tu trabajo, paso a paso</h2><p>Así está diseñada la experiencia para ofrecer servicios en YoResuelvo!.</p></div></div>
+      <ol class="journey-steps">
+        <li><span class="step-number" aria-hidden="true">01</span><h3>Presenta lo que haces</h3><p>Elige tus oficios, tareas, municipios y horarios. Tu dirección particular no aparecerá en el perfil público.</p></li>
+        <li><span class="step-number" aria-hidden="true">02</span><h3>Define cada propuesta</h3><p>Responde a solicitudes pertinentes con alcance, materiales, traslado, vigencia y precio total en MXN.</p></li>
+        <li><span class="step-number" aria-hidden="true">03</span><h3>Acuerda y documenta</h3><p>Tras la aceptación, el ticket registra el acuerdo y sus cambios. El pago se realiza directamente entre las partes.</p></li>
+      </ol>
+      <p class="journey-notice">Vista conceptual: el registro de prestadores y las solicitudes reales se habilitarán en una fase posterior.</p>
+    </section>
+
+    <section id="tickets" class="tickets-section">
+      <div class="section-heading"><div><p class="eyebrow">ACUERDOS A LA VISTA</p><h2>Tickets de demostración</h2><p>Se guardan solo en este navegador y no se envían a nadie.</p></div></div>
+      <div id="ticket-list" class="ticket-grid"></div>
+      <button id="clear" class="button button-quiet" type="button">Borrar tickets demo</button>
+    </section>
+  </main>
+
+  <footer><a class="brand brand-footer" href="#inicio"><img src="logo.svg" alt="" width="34" height="34"><span>YoResuelvo<span class="brand-bang">!</span><small>GENTE LOCAL, SOLUCIONES CERCANAS</small></span></a><p>Proyecto independiente · Identidad conceptual<br>Ticket de servicio; no es factura ni comprobante de pago.</p></footer>
+
+  <dialog id="request" class="request-dialog"><form id="request-form"><button class="dialog-close" type="button" id="cancel" aria-label="Cerrar">×</button><p class="eyebrow">SOLICITUD DE DEMOSTRACIÓN</p><h2>Cuéntanos qué necesitas</h2><p id="chosen" class="chosen-provider"></p><label for="description">Describe el trabajo<textarea id="description" minlength="10" maxlength="800" required placeholder="Ej. revisar tres contactos en la sala."></textarea></label><p class="fine">Este ejemplo crea un ticket local; no contacta a ningún profesional.</p><p id="error" role="alert"></p><button class="button button-primary" type="submit">Crear ticket demo</button></form></dialog>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

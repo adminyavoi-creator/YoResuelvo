@@ -1,4 +1,4 @@
-# Plan integral de desarrollo — versión inicial
+# Plan integral de desarrollo — YoResuelvo! · revisión 03
 ## 1. Objetivo
 Conectar hogares y negocios de Delicias con prestadores de servicios para descubrir, comparar, solicitar cotizaciones y formalizar acuerdos mediante tickets. La plataforma no cobra al cliente, no retiene dinero y no opera billeteras. El pago se acuerda y realiza directamente entre las partes.
 
@@ -41,7 +41,7 @@ Solicitud: borrador, abierta, contratada, cancelada, vencida. Cotización: envia
 | 5 Piloto | 2 semanas | Pruebas móviles, accesibilidad, respaldo/restauración y piloto acotado |
 | 6 Expansión | Posterior | Android con Capacitor, push y municipios adicionales |
 
-Total orientativo: 10–12 semanas con dedicación estable; presupuesto y fechas requieren dimensionar equipo y alcance. Primera entrega actual: plan, identidad propuesta y demo local; las fases de backend siguen pendientes.
+Total orientativo: 10–12 semanas con dedicación estable; presupuesto y fechas requieren dimensionar equipo y alcance. El incremento técnico de las fases 1–4 se implementó para un piloto; la validación de la fase 5 y varios módulos del alcance completo siguen pendientes. Véase `ESTADO_FASES.md`.
 
 ## 8. Criterios de lanzamiento
 Cero acceso cruzado entre clientes; ningún usuario puede autoasignarse administrador; aceptación concurrente produce una sola contratación; folios únicos; reseña solo de cliente con servicio completado; direcciones/adjuntos privados; historial de cambios; recuperación de cuenta; bajas y conservación definidas; ningún flujo solicita tarjeta o saldo. Pruebas en Android, iOS y escritorio. La demo no cuenta como verificación productiva.
@@ -54,3 +54,26 @@ Piloto sin cobros de plataforma. A futuro evaluar suscripción de visibilidad o 
 
 ## 11. Rangos y oportunidades
 Incorporar el módulo detallado en RANGOS_Y_OPORTUNIDADES.md desde la fase de definición. Antes de publicar precios, validar tareas/unidades con prestadores locales; los importes actuales son ficticios. La plataforma ofrece trazabilidad, soporte y mecanismos de reputación; no promete seguro, garantía financiera ni empleo garantizado.
+
+## 12. Secuencia de implementación y responsabilidades
+El calendario es relativo al inicio efectivo del desarrollo; no constituye una fecha comprometida.
+
+| Semanas | Entrega | Responsable funcional | Verificación |
+|---|---|---|---|
+| 1 | Validación de marca, tareas y entrevistas | Producto y diseño | Flujo entendido por clientes y prestadores del piloto |
+| 2–3 | Fundación, cuentas y permisos | Desarrollo | Pruebas de aislamiento y recuperación de cuenta |
+| 4–5 | Perfil, catálogo y comparación | Desarrollo y operación | Alta aprobada, filtros y comparación móvil |
+| 6–8 | Solicitudes, cotizaciones y tickets | Desarrollo | Una aceptación por solicitud, historial y ticket reproducible |
+| 9–10 | Cierre, reseñas y moderación | Desarrollo y soporte | Solo participantes autorizados; reseñas de servicios terminados |
+| 11–12 | Piloto y ajustes | Producto, soporte y desarrollo | Criterios del apartado 8 y decisión de lanzamiento |
+
+Los roles anteriores son responsabilidades propuestas, aún sin personas asignadas. Los rangos se validan desde semana 1 y se publican solo con datos suficientes. El calendario adopta el extremo de 12 semanas de la estimación previa; esfuerzos simultáneos pueden reducirlo.
+
+## 13. Estado verificable de la entrega
+- Disponible: plan, identidad provisional, app React/TS, esquema Supabase y recorridos técnicos de las fases 1–4. Las migraciones y una prueba transaccional de permisos se ejecutaron en el proyecto independiente de YoResuelvo!.
+- Pendiente: pruebas con personas y dispositivos reales, operación de soporte, respaldo restaurado, mensajería, adjuntos y validación de rangos locales. Ver `ESTADO_FASES.md` y `PILOTO_OPERACION.md`.
+- Marca: propuesta visual original pendiente de cotejar con el logotipo maestro de Yavoi! y validar con el titular.
+
+## 14. Inicio de fase 0 — propuesta 3 Acción
+
+La fase 0 tiene una especificación en `FASE_0_UX_UI.md`. La demo ficticia se conservó en `/demo/`, y la aplicación real usa componentes React/TypeScript con la misma paleta. La investigación con personas de Delicias, el catálogo por tareas y la definición operativa siguen pendientes.
