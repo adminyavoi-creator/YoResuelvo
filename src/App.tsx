@@ -211,16 +211,17 @@ export default function App() {
           {filtered.length ? <div className="cards">{filtered.map(p => <article className="card" key={p.id}>
             <div className="card-head"><span className="avatar" aria-hidden="true">{p.display_name.slice(0, 1)}</span><div><h3>{p.display_name}</h3><small>{p.categories.map(c => label(categories, c)).join(' · ')}</small></div></div>
             <p className="place">⌖ {label(municipalities, p.municipality_slug)} · {configured ? 'Perfil aprobado' : 'Ejemplo visual'}</p>
+            <p className={`provider-availability${p.available ? '' : ' paused'}`}><span aria-hidden="true">●</span> {p.available ? 'Recibe solicitudes' : 'No disponible por ahora'}</p>
             {configured && (() => { const ratings = reviews.filter(r => r.provider_id === p.id); return ratings.length
               ? <p className="rating">★ {(ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length).toFixed(1)} · {ratings.length} reseña{ratings.length === 1 ? '' : 's'}</p>
               : <p className="fine">Aún sin reseñas en la plataforma</p>; })()}
             <p>{p.bio}</p><button type="button" className="profile-link" onClick={() => setProfilePreview(p)}>Conocer perfil <span aria-hidden="true">→</span></button>
             <p className="fine">Cotización según tarea, materiales y traslado. {configured ? 'Precio según propuesta aceptada.' : 'Datos ficticios.'}</p>
             <div className="card-actions"><button type="button" className="button outline" aria-pressed={compared.includes(p.id)}
-              disabled={compared.length >= 3 && !compared.includes(p.id)}
+              disabled={!p.available || (compared.length >= 3 && !compared.includes(p.id))}
               onClick={() => setCompared(ids => ids.includes(p.id) ? ids.filter(id => id !== p.id) : [...ids, p.id])}>
               {compared.includes(p.id) ? '✓ Elegido' : '＋ Comparar'}
-            </button><button type="button" className="button primary" onClick={() => startRequest([p])}>Solicitar</button></div>
+            </button><button type="button" className="button primary" disabled={!p.available} onClick={() => startRequest([p])}>{p.available ? 'Solicitar' : 'No disponible'}</button></div>
           </article>)}</div> : <div className="empty"><h3>Sin perfiles para estos filtros</h3><p>Prueba otro municipio o servicio. Una cuenta nueva puede tardar en ser aprobada.</p><button className="button outline" type="button" onClick={() => { setSearch(''); setCity(''); setCategory(''); }}>Limpiar filtros</button></div>}
           {compared.length > 0 && <section className="compare" aria-label="Comparación de prestadores"><div className="section-head"><h3>Compara hasta tres</h3><button className="text-button" onClick={() => setCompared([])}>Limpiar</button></div><div className="compare-grid">{compared.map(id => {
             const p = providers.find(item => item.id === id);
@@ -335,8 +336,8 @@ function ProviderProfileDialog({ provider, categories, municipalities, reviews, 
       <div className="profile-reviews"><h3>Reseñas de servicios completados</h3>{recentReviews.length ? recentReviews.map((review, index) => <article key={`${review.created_at}-${index}`}>
         <strong>★ {review.rating}/5</strong><p>{review.body}</p><small>{date(review.created_at)}</small></article>)
         : <p className="fine">Las reseñas aparecerán aquí cuando haya servicios completados y evaluados.</p>}</div>
-      <div className="profile-dialog-actions"><button type="button" className="button outline" disabled={!canCompare && !compared} onClick={onCompare}>{compared ? '✓ En comparación' : 'Comparar'}</button>
-        <button type="button" className="button primary" onClick={onRequest}>Solicitar cotización</button></div>
+      <div className="profile-dialog-actions"><button type="button" className="button outline" disabled={!provider.available || (!canCompare && !compared)} onClick={onCompare}>{compared ? '✓ En comparación' : 'Comparar'}</button>
+        <button type="button" className="button primary" disabled={!provider.available} onClick={onRequest}>{provider.available ? 'Solicitar cotización' : 'No disponible'}</button></div>
     </section>
   </div>;
 }

@@ -39,16 +39,16 @@ Solicitud: borrador, abierta, contratada, cancelada, vencida. Cotización: envia
 | 3 Contratación | 2–3 semanas | Solicitudes, cotizaciones versionadas, aceptación atómica, agenda y ticket |
 | 4 Confianza | 2 semanas | Cierre, reseñas verificadas por servicio, reportes y paneles |
 | 5 Piloto | 2 semanas | Pruebas móviles, accesibilidad, respaldo/restauración y piloto acotado |
-| 6 Comunicación | Posterior | Mensajes privados por ticket, avisos y preferencias respetadas |
-| 7 PWA/Android | Posterior | Instalación web, pruebas móviles y evaluación de Capacitor/push |
-| 8 Expansión | Posterior | Cobertura verificable por municipio/oficio antes de abrir una zona |
-| 9 Oportunidades | Posterior | Bolsa acotada por oficio/zona, intereses trazables y sin contacto público |
-| 10 Privacidad | Posterior | Preferencias respetadas y exportación de datos propios bajo RLS |
-| 11 Apelaciones | Posterior | Solicitud y revisión auditada en 30 días; aceptar reabre el caso, no arbitra pagos |
-| 12 Operación | Posterior | Panel de indicadores agregados para moderación y capacidad por zona/oficio |
-| 13 Calidad de release | Continua | Smoke checks de artefactos y checklist de salida; dispositivos y piloto siguen siendo validación humana |
+| 6 Comunicación | Implementación técnica aplicada | Mensajes privados por ticket y avisos dentro de la app; proveedor de correo/push aún no configurado |
+| 7 PWA/Android | PWA técnica aplicada; Android nativo pendiente | Manifiesto y shell de interfaz; evaluar Capacitor y dispositivos físicos después del piloto |
+| 8 Expansión | Implementación técnica aplicada | Cobertura por municipio/oficio con prestadores aprobados; abrir una zona requiere oferta y operación validadas |
+| 9 Oportunidades | Implementación técnica aplicada | Intereses y publicaciones filtrados; el contacto continúa por solicitud/cotización/ticket |
+| 10 Privacidad | Implementación técnica aplicada | Preferencias y exportación de datos propios bajo RLS; eliminación de cuenta requiere política aparte |
+| 11 Apelaciones | Implementación técnica aplicada | Revisión auditada en 30 días; operación humana pendiente y no arbitra pagos |
+| 12 Operación | Implementación técnica aplicada | Panel de indicadores agregados; todavía no representa resultados del piloto |
+| 13 Calidad de release | Script y CI implementados | Smoke checks de artefactos y checklist; dispositivos y piloto siguen siendo validación humana |
 
-Total orientativo de las fases 0–5: 10–12 semanas con dedicación estable; las fases 6–13 son incrementos posteriores y no sustituyen la validación del piloto. El incremento técnico de las fases 1–4 se implementó para un piloto; la fase 5 y la verificación operativa con personas y dispositivos reales siguen pendientes. Véase `ESTADO_FASES.md`.
+Total orientativo original de las fases 0–5: 10–12 semanas con dedicación estable. Los incrementos técnicos 6–13 ya están aplicados y no sustituyen la validación del piloto. Las fases 1–4 tienen su base técnica; la fase 5 y la verificación operativa con personas y dispositivos reales siguen pendientes. Véase `ESTADO_FASES.md` y `PLAN_IMPLEMENTACION.md`.
 
 ## 8. Criterios de lanzamiento
 Cero acceso cruzado entre clientes; ningún usuario puede autoasignarse administrador; aceptación concurrente produce una sola contratación; folios únicos; reseña solo de cliente con servicio completado; direcciones/adjuntos privados; historial de cambios; recuperación de cuenta; bajas y conservación definidas; ningún flujo solicita tarjeta o saldo. Pruebas en Android, iOS y escritorio. La demo no cuenta como verificación productiva.

@@ -1,6 +1,6 @@
 # Arquitectura y límites del piloto
 ## Decisión
-La aplicación web usa React + TypeScript + Vite y Supabase Auth/Postgres en un proyecto independiente de Oficia. La demo previa permanece en `/demo/`. Storage, PWA y Capacitor se evalúan después de validar el piloto web. El esquema ya se aplicó con migraciones versionadas; el despliegue y los datos reales se describen en `ESTADO_FASES.md`.
+La aplicación web usa React + TypeScript + Vite y Supabase Auth/Postgres en un proyecto independiente de Oficia. La demo previa permanece en `/demo/`. El shell PWA y el manifiesto están implementados; datos y acciones requieren conexión. Storage para adjuntos y Capacitor/Android se evaluarán después de validar el piloto web. El esquema ya se aplicó con migraciones versionadas; el despliegue y los datos reales se describen en `ESTADO_FASES.md`.
 
 ## Modelo de datos propuesto
 | Entidad | Datos y reglas |
