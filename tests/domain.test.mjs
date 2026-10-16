@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {providers,search,toggleCompare,makeTicket} from '../public/domain.js';
+test('filtra conjuntamente texto, municipio y categoría',()=>{assert.equal(search(providers,'contactos','Delicias','Electricidad').length,1);assert.equal(search(providers,'contactos','Meoqui','Electricidad').length,0);});
+test('comparación limitada a tres y permite retirar',()=>{const ids=['a','b','c'];assert.deepEqual(toggleCompare(ids,'d'),ids);assert.deepEqual(toggleCompare(ids,'b'),['a','c']);});
+test('ticket valida descripción y no constituye contratación',()=>{assert.throws(()=>makeTicket(providers[0],'corto'));const a=makeTicket(providers[0],'Revisar contactos de ejemplo'),b=makeTicket(providers[0],'Revisar contactos de ejemplo');assert.notEqual(a.id,b.id);assert.equal(a.status,'Solicitud demo');assert.match(a.notice,/No confirma/);});
