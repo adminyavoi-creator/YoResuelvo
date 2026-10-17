@@ -21,6 +21,7 @@
 | Prestador y cliente | Inician, reportan y confirman terminación | Historial de estados con actor y fecha |
 | Cliente | Reseña | Una por trabajo terminado; promedio público basado en reseñas reales |
 | Partes y operador | Reportan y resuelven incidencia | Motivo auditable; no se alteran pagos externos |
+| Cliente y Operaciones | Intercambian mensajes de soporte | Solo la persona titular y operadores autorizados leen el hilo; notificación al cliente al responder |
 
 ## Salida del piloto
 
