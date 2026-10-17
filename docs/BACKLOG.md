@@ -22,3 +22,15 @@ Cada elemento debe convertirse en issue en el repositorio nuevo al disponer de c
 | R16 | P0 | Catálogo por tarea/unidad | Alcance, materiales, traslado y complejidad comparables |
 | R17 | P0 | Metodología de rangos | Muestra mínima, versión y tratamiento de datos insuficientes |
 | R18 | P1 | Bolsa de oportunidades | Dos recorridos, invitaciones pertinentes y control de disponibilidad |
+
+## Revisión priorizada · 17 de octubre de 2026
+
+| Prioridad | Entregable | Estado y verificación pendiente |
+|---|---|---|
+| P0 | Revisión de la rama UX/soporte y despliegue de preview | Código y migración listos; compilar y probar visualmente navegación repetida, filtros, mapa, solicitudes y chat antes de integrar. |
+| P0 | Operaciones con respuesta humana | Canal persistente con RLS aplicado. Falta operador asignado y ensayo de dos cuentas, avisos y aislamiento. |
+| P0 | Piloto de contratación | No hay perfiles aprobados ni solicitudes; incorporar voluntarios y completar flujo real con consentimiento. |
+| P0 | Play Console y Android | Texto, icono y gráfico guardados; faltan capturas reales, AAB firmado, revisión de consola y pruebas físicas. |
+| P1 | Mapa con pines | Definir y guardar zona pública consentida, validar coordenadas y agrupar resultados. |
+| P1 | Recomendaciones/promociones medidas | Campañas con fechas y métricas agregadas; no usar etiquetas de demanda sin datos. |
+| P1 | Mensajería | Verificar canal de soporte real, agregar estado de lectura y, si el piloto lo requiere, Realtime. |

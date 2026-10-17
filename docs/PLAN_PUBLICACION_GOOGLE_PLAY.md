@@ -5,16 +5,16 @@
 
 ## Punto de partida comprobado
 
-- Play Console está abierta en la cuenta de desarrollador `TheLogosDev`, de tipo personal. Los datos principales del perfil del desarrollador y sus verificaciones siguen vigentes. No se copian datos personales al repositorio.
+- Play Console está abierta en la cuenta de desarrollador de tipo personal. Los datos principales del perfil y sus verificaciones siguen vigentes. No se copian identificadores de cuenta ni datos personales al repositorio.
 - La app `YoResuelvo!` ya está creada y aparece como borrador en Play Console. Idioma predeterminado: español (Latinoamérica), `es-419`; tipo: Aplicación; distribución: gratuita.
 - Paquete Android: `mx.yoresuelvo.app`. La sección Verificación de desarrolladores de Android ya muestra el paquete como **Registrado**, con tres claves asociadas. Tras crear el primer AAB firmado hay que confirmar que la clave de carga elegida coincide con la registrada.
-- En Contenido de la app siguen pendientes cinco declaraciones: política de privacidad, detalles de acceso, clasificación del contenido, público objetivo y Seguridad de los datos. La ficha predeterminada de Play Store ya tiene textos guardados como borrador. El icono de 512 × 512 está preparado; faltan exportar el gráfico vectorial de funciones a PNG/JPEG y subir entre dos y ocho capturas actuales de teléfono.
+- En Contenido de la app siguen pendientes cinco declaraciones: política de privacidad, detalles de acceso, clasificación del contenido, público objetivo y Seguridad de los datos. La ficha predeterminada tiene textos, icono de 512 × 512 y gráfico de funciones guardados como borrador; faltan entre dos y ocho capturas actuales de teléfono.
 - Se guardaron las declaraciones factuales de que la app no contiene anuncios, no es gubernamental, no ofrece funciones financieras ni de salud y no usa el ID de publicidad de Android. Aún no se enviaron cambios a revisión.
 - La categoría guardada es `Vivienda y hogar`. El correo público de contacto de la ficha reutiliza el correo de desarrollador que ya aparece en el perfil público; teléfono y sitio web de soporte de esta app aún no se configuraron.
 - Capacitor comparte la app React/Vite con la PWA.
 - `compileSdkVersion = 36` y `targetSdkVersion = 36`, requisito vigente para nuevas apps y actualizaciones desde el 31 de agosto de 2026.
 - Existe `npm run android:aab`, que ejecuta `bundleRelease`, pero el proyecto no tiene configurado `signingConfig` de release.
-- `android/app/google-services.json` está presente localmente para Firebase `yoresuelvo-2822f`; no se ha hecho una compilación release que valide Google Services ni una entrega FCM en dispositivo.
+- `android/app/google-services.json` está presente localmente para el proyecto Firebase de YoResuelvo!; no se ha hecho una compilación release que valide Google Services ni una entrega FCM en dispositivo.
 - `versionCode = 1`, `versionName = 1.0`.
 - La fecha de creación de la cuenta aún no se confirmó; verificarla para determinar si aplica el requisito de 12 testers/14 días antes de solicitar producción.
 - La consola y las herramientas de desarrollo no reemplazan una prueba instalada en un Android real.
@@ -23,9 +23,9 @@
 
 1. **Eliminar cuenta y datos:** la política acordada borra los datos asociados a la cuenta, incluidas conversaciones y reseñas; cancela solicitudes contratadas cuyo proveedor seleccionado se elimina; y conserva el ticket del servicio como snapshot de seguridad, desvinculado de la cuenta. La migración `account_deletion_cascades` y la Edge Function `delete-account` v1 ya están activas en Supabase producción. No se ejecutó ninguna baja durante el despliegue. Antes de enviar la app a revisión, falta publicar/verificar la ruta web de eliminación y completar una prueba de extremo a extremo con una cuenta controlada, comprobando la cancelación, la eliminación de datos y la conservación del ticket.
 2. **Seguridad de contenido y usuarios:** YoResuelvo publica perfiles, imágenes, reseñas y ofrece chat. Antes de revisión se deben publicar reglas de contenido, habilitar reporte de perfiles y contenido, bloqueo de usuarios, flujo de moderación y canal de soporte. El reporte actual está asociado al ticket; no basta para reportar cualquier perfil público.
-3. **Privacidad y transparencia:** el borrador de política y términos existe localmente, identifica YoResuelvo!/TheLogosDev y usa el correo público del perfil de desarrollador; publicar las páginas y revisar la descripción de retención antes de completar Data safety. Declarar Supabase Auth, base de datos, Storage, FCM y SDK con el comportamiento real.
+3. **Privacidad y transparencia:** el borrador de política y términos existe localmente, identifica al responsable de YoResuelvo! y usa el correo público del perfil de desarrollador; publicar las páginas y revisar la descripción de retención antes de completar Data safety. Declarar Supabase Auth, base de datos, Storage, FCM y SDK con el comportamiento real.
 4. **Artefacto y firma:** crear llave de carga, guardarla fuera del repo y configurar firma de release. Activar Play App Signing en la primera carga; no publicar credenciales ni archivos de firma en GitHub, Vercel o el bundle.
-5. **Arte de tienda y operación:** exportar el gráfico vectorial 1024 × 500 a PNG/JPEG, subir capturas reales y completar identidad, clasificación, declaraciones y acceso para revisión. Revisar el registro de paquete Android tras la puesta al día de verificación de septiembre de 2026.
+5. **Arte de tienda y operación:** icono y gráfico 1024 × 500 guardados; subir capturas reales y completar identidad, clasificación, declaraciones y acceso para revisión. Revisar el registro de paquete Android tras la puesta al día de verificación de septiembre de 2026.
 
 ### Estado actual de configuración en Play Console
 
@@ -98,3 +98,7 @@ Se toman patrones y aprendizajes, no cuentas, datos, credenciales ni infraestruc
 ## Criterio de salida
 
 No declarar producción lista hasta tener: cuenta/paquete verificados; bloqueadores de seguridad resueltos; aviso de privacidad, eliminación y Data safety consistentes; AAB firmado y validado; Internal y closed testing aprobados; testing de FCM en Android; autorización de producción si aplica; release revisado por Google y plan de soporte activo.
+
+## Verificación de ficha · 17 de octubre de 2026
+
+La ficha predeterminada `YoResuelvo!` (es-419) muestra nombre, descripción breve y descripción completa guardados. El icono 512×512 y el gráfico destacado 1024×500 se cargaron en Console y la página confirmó «Se guardaron los cambios». Siguen pendientes de 2 a 8 capturas de teléfono tomadas de la app real con la nueva navegación. Revisar textos para que el chat de Operaciones no prometa respuesta inmediata sin staff. No enviar la ficha a revisión ni subir AAB hasta cerrar el recorrido en dispositivo y el control UGC.

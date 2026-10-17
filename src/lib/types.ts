@@ -35,6 +35,8 @@ export type Notification = { id: number; recipient_id: string; title: string; bo
 export type Report = { id: string; job_id: string; reason: string; created_at: string };
 export type JobEvent = { id: number; job_id: string; actor_id: string; previous_status: string | null; next_status: string; reason: string | null; created_at: string };
 export type JobMessage = { id: number; job_id: string; sender_id: string; body: string; created_at: string };
+export type SupportMessage = { id: number; user_id: string; sender_id: string | null; body: string; created_at: string };
+export type SupportThread = { user_id: string; created_at: string; updated_at: string };
 export type NotificationPreferences = {
   user_id: string; in_app: boolean; email_updates: boolean; push_updates: boolean; updated_at: string;
 };

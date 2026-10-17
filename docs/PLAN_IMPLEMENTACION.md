@@ -44,6 +44,54 @@ En esta actualización se incorporan accesos móviles inferiores, categorías co
 
 La PWA instalada inicia en `landing.html`, una bienvenida visual con acceso a buscar u ofrecer servicios y enlaces públicos a privacidad, términos y eliminación. El CTA entra al frontend de la app en `/`. Android Capacitor conserva su entrada actual en `index.html`; su inicio nativo no se reemplaza por la landing.
 
+## Herramientas que debe ofrecer YoResuelvo!
+
+Esta matriz separa lo que ya está en el código de lo que todavía requiere conexión real, verificación o desarrollo. “Implementado” describe la base técnica; no significa que el flujo haya pasado el piloto de campo.
+
+### Herramientas de cara a clientes y especialistas
+
+| Área | Herramientas necesarias | Estado actual | Siguiente criterio de aceptación |
+|---|---|---|---|
+| Entrada | Google como acceso principal, correo y recuperación; sesión persistente; intención inicial “busco” u “ofrezco”; cuenta con ambos recorridos | Código React/Supabase y retorno nativo preparados | Completar configuración OAuth, probar altas, sesiones, recuperación, cierre de sesión y deep link en web y Android. |
+| Descubrimiento | Búsqueda por nombre/tarea, filtros por oficio y municipio, categorías visuales y perfiles disponibles/aprobados | Búsqueda y filtros básicos implementados | Probar búsqueda con el catálogo real, estados vacíos y errores de red. La cercanía GPS no está implementada. |
+| Perfil especialista | Nombre público, bio, años, especialidades, municipio, disponibilidad y hasta cinco fotos | Formulario, carga y visualización en el modelo implementados | Aprobar perfiles reales, revisar consentimiento y contenido, y ajustar galería/carrusel en distintos tamaños de pantalla. |
+| Comparación | Seleccionar varias personas y comparar reseñas verificadas y propuesta para el mismo trabajo | Flujo de perfiles, solicitudes y cotizaciones implementado | Validar que la interfaz compare alcance equivalente, desglose total, fecha, vigencia y exclusiones; no ordenar solo por precio. |
+| Solicitud | Categoría, municipio, título, alcance y horario preferido; invitación a máximo cinco especialistas | Implementado | E2E con dos cuentas; añadir adjuntos solo después de Storage privado, límites, escaneo/moderación y eliminación comprobados. |
+| Cotización | Alcance incluido, materiales, exclusiones, mano de obra, materiales, traslado, fecha propuesta y vigencia; versiones inmutables | Implementado con aceptación transaccional única | Probar ofertas vencidas, editadas, duplicadas y aceptadas en paralelo; el servidor debe conservar una sola aceptación. |
+| Servicio y ticket | Agenda, estados, motivo de cancelación/incidencia, dirección privada, folio, acuerdo e historial imprimible | Implementado | Probar todos los estados y permisos con cliente, especialista y tercero; el ticket archivado no expone chats, reseñas ni dirección. |
+| Mensajería | Conversación privada por servicio, avisos de mensaje y acceso desde ticket | Mensajes persistentes implementados; Realtime, adjuntos y confirmaciones de lectura todavía no están implementados | Verificar aislamiento entre trabajos; después decidir si el piloto requiere Realtime y añadir señales de entrega/no leído solo con consistencia garantizada. |
+| Reputación y seguridad | Una reseña por cliente y trabajo completado, incidencias, moderación y apelación | Reglas y vistas de moderación/apelación implementadas | Probar abuso y moderación. Añadir reporte general de perfil/contenido y bloqueo de usuarios antes de la disponibilidad pública. |
+| Avisos | Bandeja interna, preferencias, push PWA y Android, ruta al abrir notificación | Bandeja y canal FCM preparados | Validar credenciales/worker programado, permiso denegado, token inválido y estados foreground/background/terminada en teléfono físico. |
+| Cuenta y privacidad | Ver datos propios, exportar, actualizar preferencias y eliminar cuenta desde app y web | Exportación, enlaces y función de borrado implementados | Probar el borrado con una cuenta controlada y comprobar exactamente: reseñas/chats borrados, servicios del proveedor cancelados y ticket conservado sin vínculo personal. |
+
+### Herramientas operativas y de plataforma
+
+| Capa | Herramienta | Uso y control requerido |
+|---|---|---|
+| App web | Vite, React y TypeScript | Interfaz adaptable y validación estática con `npm run typecheck`; conservar rutas públicas de privacidad, términos y baja. |
+| App Android | Capacitor 8, Android Studio y Gradle | Empaquetar el mismo frontend; probar OAuth de retorno, permisos push, navegación al tocar avisos, teclado, rotación/tamaños y accesibilidad. |
+| PWA | Manifiesto, service worker y Firebase Messaging | Instalable y shell offline. Las operaciones que guardan datos requieren red; informar claramente si no hay conexión y no perder formularios. |
+| Identidad | Supabase Auth PKCE | Google/correo, sesiones y recuperación. Nunca autorizar por metadatos editables del usuario. |
+| Datos y permisos | Supabase Postgres, migraciones SQL, RLS y RPC transaccionales | Aislamiento por cliente/especialista/operador; aceptación y transiciones validadas en servidor; probar accesos permitidos y denegados. |
+| Fotos y archivos | Supabase Storage | Fotos aprobadas del perfil pueden ser públicas; direcciones, documentos y adjuntos de servicios deben ser privados, con URL temporal, validación de tipo/tamaño y borrado. |
+| Funciones servidor | Supabase Edge Functions | Ejecutar baja y worker push con secretos en servidor; nunca incluir `service_role` o cuenta de servicio Firebase en `VITE_*` o en el bundle. |
+| Push | Firebase Cloud Messaging + cola Supabase | Respetar consentimiento/preferencias, token por instalación, reintentos limitados y desactivación de tokens inválidos. Probar entrega real antes de declarar listo. |
+| Hosting y versiones | Vercel + GitHub/CI del repositorio | Preview conectada a datos de prueba; producción separada; build reproducible, revisión por cambios y rollback documentado. |
+| Calidad | `npm test`, `npm run test:release`, SQL de integración y pruebas E2E/dispositivo | Cubrir reglas de dominio, RLS, concurrencia, autorización, navegación, sesión, eliminación y avisos. Los smoke checks no sustituyen E2E ni piloto. |
+| Publicación | Android Studio/Gradle + Play Console | Keystore de carga y Play App Signing protegidos; generar AAB firmado, subir a prueba interna/cerrada y monitorear antes del lanzamiento gradual. |
+| Operación | Métricas agregadas y bitácora de moderación | Medir embudo y calidad de oferta con muestra; excluir cuerpo de mensajes, domicilios y tokens de los logs y reportes generales. |
+
+### Orden recomendado para terminar el piloto
+
+1. Cerrar OAuth y recuperación con cuentas reales; poblar el catálogo solo con especialistas que hayan aceptado participar y pasado revisión.
+2. Ejecutar el flujo completo cliente–especialista, incluidos propuestas, aceptación concurrente, dirección privada, ticket, cancelación, chat, cierre y reseña.
+3. Añadir reporte y bloqueo generales y cerrar revisión de RLS/RPC para todos los datos públicos, privados y administrativos.
+4. Probar exportación y eliminación con cuenta controlada; revisar respaldo restaurado, accesibilidad y procedimiento de soporte.
+5. Configurar y validar FCM real en PWA y Android; corregir permisos y preferencias si una notificación no respeta la opción del usuario.
+6. Probar Android en dispositivo físico y producir el AAB firmado; seguir la ruta de Internal testing, closed testing y release gradual documentada en `PLAN_PUBLICACION_GOOGLE_PLAY.md`.
+
+La ubicación por radio, el mapa, favoritos, adjuntos de solicitud, correo transaccional y métricas personales de velocidad se mantienen como mejoras posteriores. Para publicar distancia o promedio de respuesta se definirá primero el permiso de ubicación, la fórmula, la muestra mínima y el estado cuando no existan datos.
+
 ## Plan por fases y criterios de salida
 
 | Fase | Estado real | Cierre necesario |
@@ -90,3 +138,32 @@ Antes de un piloto se debe revisar la autorización de cada RPC y los permisos d
 - [Operación del piloto](PILOTO_OPERACION.md)
 - [Lista de verificación de release](VERIFICACION_RELEASE.md)
 - [Ruta de publicación en Google Play](PLAN_PUBLICACION_GOOGLE_PLAY.md)
+
+## Iteración UX móvil · 17 de octubre de 2026
+
+### Entrega en código
+
+- **Inicio separado de Explorar.** Inicio muestra categorías populares como accesos, carrusel táctil de recomendaciones y perfiles ordenados por promedio de reseñas verificadas. Cuando no hay reseñas se indica “Sin reseñas”; la demanda de cada oficio aún no se mide, por lo que el orden de categorías usa el catálogo editorial. Las promociones no se inventan: queda un espacio reservado para campañas vigentes.
+- **Explorar.** Conserva búsqueda, municipio, oficio, ficha y comparación. Incluye selector Lista/Mapa OSM. El mapa muestra la región y una lista asociada de especialistas con oficio y nota de estrellas; el perfil se abre al tocar cada ficha. La app no almacena coordenadas de profesionales, así que no se muestran pines individuales ni se pretende representar domicilios.
+- **Solicitudes.** Filtros por todas, abiertas, contratadas y recibidas; cada tarjeta muestra número de cotizaciones y el total contratado o la menor propuesta recibida. La cotización sigue desglosada y el ticket conserva el acuerdo aceptado. El importe es el acordado entre partes, no un cobro procesado por la plataforma.
+- **Chat.** La pestaña tiene un índice de conversaciones persistidas por trabajo contratado y lleva al chat dentro del ticket. Operaciones aparece arriba con identidad visual propia. En el siguiente incremento se añadieron tablas de soporte separadas, RLS y envío/lectura desde la interfaz; sin un operador asignado, no se puede garantizar respuesta humana.
+- **Iconografía.** Los oficios iniciales usan pictogramas vectoriales de electricidad, plomería, cerrajería, limpieza y mandados; el oficio adicional utiliza herramienta genérica. Mantener trazo uniforme y contraste sobre miel/marfil, con texto visible junto a cada icono.
+
+### Próximos incrementos verificables
+
+| Prioridad | Entrega | Dependencia y criterio de salida |
+|---|---|---|
+| P0 | QA de navegación Android/PWA | Verificar cambios repetidos entre cinco pestañas, vuelta desde ficha y ticket, teclado, scroll, gestos, datos lentos y reanudación en dispositivos físicos; sin pantalla congelada ni pérdida de formulario. |
+| P0 | Soporte Operaciones real | Tablas, RLS, historial, envío y aviso a usuario implementados. Falta asignar operador, probar aislamiento con dos cuentas y establecer guardias/tiempos de respuesta. No anunciar atención en tiempo real hasta el E2E. |
+| P1 | Mapa de especialistas | Definir ubicación pública aproximada o zona de atención con consentimiento; coordenadas revisadas y precisión reducida. Consultar solo perfiles aprobados. Mostrar pines agrupados, etiqueta de oficio y promedio con número de reseñas; pin abre ficha. Verificar mapa/lista con filtros iguales, permisos y estado sin ubicación. |
+| P1 | Popularidad y promociones | Agregar métricas agregadas de solicitudes por oficio, ventana temporal y umbral mínimo; campañas con fechas, segmentación, estado, condiciones y revisión de Operaciones. Ordenar Inicio solo con datos válidos y explicar cuando no haya muestra. |
+| P1 | Solicitudes y chats | Búsqueda y orden por fecha/estado; indicadores de no leídos basados en lecturas persistentes; vista de detalles con estados y monto de cada propuesta. Probar aceptación única concurrente y restricciones de acceso. |
+| P2 | Contenido interactivo | CMS o tabla de tarjetas con imagen, texto alternativo, destino interno seguro, vigencia y métricas de apertura. Carrusel manual por tacto y teclado, sin reproducción automática obligatoria. |
+
+### Secuencia de implementación
+
+1. Cerrar P0 con dos cuentas controladas (cliente y especialista) y una de Operaciones; ejecutar pruebas de permisos, rendimiento móvil y accesibilidad.
+2. Migrar soporte y ubicación con RLS y políticas de privacidad; poblar datos piloto consentidos de Delicias y región.
+3. Conectar mapa a coordenadas aproximadas, campañas a promociones reales y ranking a métricas con muestra suficiente.
+4. Publicar en prueba interna de Play y PWA preview; medir abandono en Inicio→Perfil→Solicitud→Contrato, tasa de respuesta y errores por pantalla, sin registrar chat ni domicilio en analítica.
+5. Corregir hallazgos, ampliar prueba cerrada y desplegar gradualmente con rollback listo.
