@@ -2,6 +2,8 @@
 
 El código de YoResuelvo ya contiene el inicio con Google, sesión persistente, retorno Android, PWA, registro de dispositivos push y Edge Function. Estos valores pertenecen a recursos propios de YoResuelvo; no copiar credenciales de Oficia.
 
+**Estado de revisión (17 oct 2026):** el paquete `mx.yoresuelvo.app` ya está registrado en el proyecto Firebase `yoresuelvo-2822f`, y `android/app/google-services.json` está instalado localmente. FCM HTTP v1 está habilitado. Falta validar la compilación Android con Gradle y comprobar entrega en un dispositivo; revisar los secretos/worker y la tarea programada de Supabase antes de declarar push operativo.
+
 ## Google Auth
 
 1. En Google Cloud, crea un OAuth Client de tipo **Web application** para el proyecto de YoResuelvo. En JavaScript origins agrega los dominios de producción de YoResuelvo que estén activos en Vercel; el código usa el `origin` actual para regresar.
@@ -14,7 +16,7 @@ La pantalla muestra Google primero y mantiene el acceso existente por correo/con
 
 ## Firebase Messaging web y Android
 
-1. En un proyecto Firebase de YoResuelvo registra una app **Web** y una app **Android** con paquete `mx.yoresuelvo.app`; habilita Firebase Cloud Messaging.
+1. En el proyecto Firebase existente `yoresuelvo-2822f`, verifica las apps **Web** y **Android** registradas y el paquete Android `mx.yoresuelvo.app`; confirma que Firebase Cloud Messaging esté habilitado. Registra únicamente los recursos que realmente falten.
 2. Para web, genera una clave Web Push (VAPID) y crea estas variables en Vercel para Production y Preview:
 
    - `VITE_FIREBASE_API_KEY`
@@ -26,7 +28,7 @@ La pantalla muestra Google primero y mantiene el acceso existente por correo/con
 
    Son configuración pública del SDK web. La clave privada de cuenta de servicio nunca se pone en variables `VITE_`.
 
-3. Descarga el `google-services.json` de la app Android y colócalo en `android/app/google-services.json`. No lo subas al repositorio.
+3. El archivo `android/app/google-services.json` ya está disponible en el entorno local. Si se renueva, descárgalo desde la app Android registrada y mantenlo fuera del repositorio público; para CI, inyectarlo como archivo protegido.
 4. Crea una cuenta de servicio de Firebase con permiso para enviar mensajes FCM HTTP v1 y guarda el JSON como secreto de Supabase Edge Functions: `FIREBASE_SERVICE_ACCOUNT_JSON`.
 5. En Supabase Vault guarda los secretos `yoresuelvo_push_function_url` (URL completa de la función) y `yoresuelvo_push_service_role_key` (JWT service role del proyecto). No los pongas en GitHub ni Vercel.
 6. Después aplica `supabase/migrations/20261016200000_schedule_yoresuelvo_push_worker.sql`; registra `pg_cron`/`pg_net` para invocar la función cada minuto con ese JWT interno.
@@ -42,4 +44,4 @@ npm run test:release
 npm run android:debug
 ```
 
-Después instalar el APK en un Android físico y probar Google, sesión recordada, elección de recorrido, permiso push, aviso en segundo plano, navegación al abrirlo y cierre de sesión. También probar la PWA desde un origen HTTPS. La fase de piloto sigue abierta hasta completar estas pruebas, revisión de RPC/RLS, restauración y validación operativa.
+Después instalar la compilación en un Android físico y probar Google, sesión recordada, elección de recorrido, permiso push, aviso en primer plano/segundo plano/app terminada, navegación al abrirlo y cierre de sesión. También probar la PWA desde un origen HTTPS. La fase de piloto sigue abierta hasta completar estas pruebas, revisión de RPC/RLS, restauración y validación operativa.

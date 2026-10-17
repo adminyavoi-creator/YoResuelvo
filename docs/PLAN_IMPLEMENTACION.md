@@ -1,7 +1,7 @@
 # Plan de implementación · YoResuelvo! con referencia Oficia
 
-**Actualizado:** 16 de octubre de 2026  
-**Estado:** fases técnicas 1–4 y los incrementos 6–13 ya están en el proyecto; fase 5 sigue abierta y bloquea un piloto externo amplio.
+**Actualizado:** 17 de octubre de 2026  
+**Estado:** base PWA/Capacitor y Supabase en producción; publicación de Android en Play no iniciada. Package ID y API objetivo están definidos; faltan seguridad de UGC/eliminación, llave de carga, AAB firmado, pruebas por tracks y elegibilidad de cuenta.
 
 ## Objetivo
 
@@ -50,8 +50,9 @@ En esta actualización se incorporan accesos móviles inferiores, categorías co
 | 3 · Solicitud y acuerdo | Solicitud, hasta cinco invitaciones, cotizaciones inmutables, aceptación única, ticket y dirección privada implementados. | E2E con dos cuentas reales: enviar, cotizar, comparar, aceptar, cambiar estado, cancelar y revisar que terceros no vean datos privados. Adjuntos siguen pendientes. |
 | 4 · Confianza y soporte | Estados, historial, reseñas verificadas, avisos internos, mensajes, reportes, apelaciones, métricas y base de push están implementados. La cola y la Edge Function FCM se añadieron a Supabase. | Configurar Firebase, credenciales, consentimiento y tarea `pg_cron`; verificar entrega, preferencias, bajas de tokens, reintentos y retorno desde push en PWA/Android. |
 | 5 · Piloto controlado | **Pendiente.** Una compilación aprobada no prueba la operación en campo. | Auditoría focal de RPC y RLS; accesibilidad; pruebas Android/iOS/escritorio; respaldo restaurado; política de privacidad, conservación y soporte; contratación piloto con usuarios reales y registro de incidencias. Solo entonces decidir apertura. |
+| 6 · Release Android / Play | Paquete `mx.yoresuelvo.app`, `targetSdk 36`, configuración Firebase Android local y comando `android:aab` presentes; firma release y ficha Play no configuradas | Resolver los bloqueadores de privacidad y contenido UGC, Play App Signing, AAB firmado y validado, internal/closed testing, requisito de acceso a producción si aplica y despliegue gradual. Ruta detallada en [`PLAN_PUBLICACION_GOOGLE_PLAY.md`](PLAN_PUBLICACION_GOOGLE_PLAY.md). |
 
-Los incrementos de comunicación, privacidad, apelaciones, métricas y smoke checks que los documentos anteriores llamaban fases 6–13 están aplicados técnicamente. La PWA comparte la interfaz con el proyecto Android generado por Capacitor. La canalización push está lista en código y base de datos; el envío permanece apagado hasta configurar Firebase y el programador seguro. Correo transaccional y adjuntos siguen pendientes; la fase 5 continúa abierta.
+Los incrementos de comunicación, privacidad, apelaciones, métricas y smoke checks que los documentos anteriores llamaban fases 6–13 están aplicados técnicamente. La PWA comparte la interfaz con el proyecto Android generado por Capacitor. La canalización push está lista en código y base de datos; falta verificar secretos/worker de Supabase, el programador seguro y la entrega en dispositivos. Correo transaccional y adjuntos siguen pendientes; la fase 5 continúa abierta.
 
 ### Controles de confianza para la fase 5
 
@@ -59,11 +60,14 @@ Antes de un piloto se debe revisar la autorización de cada RPC y los permisos d
 
 ### Secuencia inmediata
 
-1. Registrar un cliente OAuth de Google propio y configurar Provider Google/redirects en Supabase.
-2. Crear las apps web y Android de YoResuelvo en Firebase; poner las variables públicas en Vercel y `google-services.json` en Android sin subirlo a Git.
-3. Guardar `FIREBASE_SERVICE_ACCOUNT_JSON` como secreto de Edge Functions y la URL/JWT `service_role` del worker en Supabase Vault; después aplicar la migración de programación incluida.
-4. Construir el APK, probar login/retorno y push en PWA y Android, incluidas preferencias y cierre de sesión.
-5. Resolver revisión focal de RPC/RLS, accesibilidad, respaldo restaurado y soporte; ejecutar luego el piloto controlado de la fase 5.
+1. Auditar el cliente OAuth de Google y redirects de Supabase existentes; registrar solo los aliases o callbacks que falten y completar un login/retorno Android real.
+2. Verificar las apps web y Android ya registradas en el Firebase de YoResuelvo; confirmar las variables públicas en Vercel y mantener `google-services.json` local/secret de CI, fuera del Git público. Probar la compilación Gradle y una entrega FCM real.
+3. Mantener la cuenta de servicio Firebase y JWT service role en Vault; nunca exponerlos a la app, GitHub público o variables VITE.
+4. Completar el plan Play: eliminación de cuenta dentro/fuera de la app; reporte/bloqueo y moderación; políticas; ficha; declaraciones; acceso de revisión.
+5. Crear llave de carga fuera de Git, configurar Play App Signing, generar el AAB release y probarlo en el track interno, incluidos Google Auth y FCM.
+6. Ejecutar closed testing. Confirmar tipo/fecha de la cuenta: para cuentas personales nuevas aplican 12 testers optados-in continuos por 14 días antes de solicitar acceso a producción.
+7. Tras habilitar producción, desplegar gradualmente, observar Android Vitals, soporte y métricas y conservar capacidad de pausar el rollout.
+8. Completar la revisión focal RPC/RLS, accesibilidad, respaldo restaurado y soporte; cerrar también la fase 5 de piloto antes de considerar una apertura amplia.
 
 ## Decisiones y límites
 
@@ -81,3 +85,4 @@ Antes de un piloto se debe revisar la autorización de cada RPC y los permisos d
 - [Arquitectura y límites del piloto](ARQUITECTURA.md)
 - [Operación del piloto](PILOTO_OPERACION.md)
 - [Lista de verificación de release](VERIFICACION_RELEASE.md)
+- [Ruta de publicación en Google Play](PLAN_PUBLICACION_GOOGLE_PLAY.md)

@@ -1,4 +1,4 @@
-# Plan integral de desarrollo — YoResuelvo! · revisión 03
+# Plan integral de desarrollo — YoResuelvo! · revisión 04
 ## 1. Objetivo
 Conectar hogares y negocios de Delicias con prestadores de servicios para descubrir, comparar, solicitar cotizaciones y formalizar acuerdos mediante tickets. La plataforma no cobra al cliente, no retiene dinero y no opera billeteras. El pago se acuerda y realiza directamente entre las partes.
 
@@ -25,7 +25,7 @@ La dirección exacta se revela solo al prestador contratado. No publicar teléfo
 - Ticket imprimible con folio único, fecha, partes, alcance, cotización aceptada, cambios y estado. No es CFDI ni comprobante de cobro.
 - Reseñas de 1–5 estrellas, texto y respuesta del técnico; una por servicio completado, sin autorreseñas. Reportes y moderación trazables.
 - Panel cliente y técnico; administración de catálogo, reportes, bloqueos y métricas.
-- Avisos dentro de la app; push PWA/Android está implementado con Firebase Messaging, pendiente de credenciales y prueba de entrega. Correo transaccional sigue pendiente.
+- Avisos dentro de la app; push PWA/Android tiene integración y credenciales/configuración parcialmente aplicadas. La prueba de entrega Android, el AAB release firmado y la configuración de Play Console siguen pendientes. Correo transaccional sigue pendiente.
 
 ## 6. Estados y excepciones
 Solicitud: borrador, abierta, contratada, cancelada, vencida. Cotización: enviada, sustituida, aceptada, rechazada, vencida. Servicio: confirmado, agendado, en_progreso, terminacion_reportada, completado, cancelado, en_disputa. Solo el cliente confirma completado; el administrador resuelve disputas con motivo auditado. Cancelación posterior al inicio debe pasar por incidencia. La plataforma documenta desacuerdos; no procesa reembolsos ni arbitra movimientos financieros.
@@ -39,8 +39,8 @@ Solicitud: borrador, abierta, contratada, cancelada, vencida. Cotización: envia
 | 3 Contratación | 2–3 semanas | Solicitudes, cotizaciones versionadas, aceptación atómica, agenda y ticket |
 | 4 Confianza | 2 semanas | Cierre, reseñas verificadas por servicio, reportes y paneles |
 | 5 Piloto | 2 semanas | Pruebas móviles, accesibilidad, respaldo/restauración y piloto acotado |
-| 6 Comunicación | Implementación técnica aplicada | Mensajes privados, avisos internos y canal push listo en código; faltan secretos Firebase y tarea programada |
-| 7 PWA/Android | PWA y proyecto Android Capacitor aplicados | Acceso y push comparten código; falta registrar OAuth/Firebase y probar en dispositivos físicos |
+| 6 Comunicación | Implementación técnica aplicada | Mensajes privados, avisos internos y canal push listo en código; falta verificar secretos/worker de Supabase, tarea programada y entrega en Android |
+| 7 PWA/Android | PWA y proyecto Android Capacitor aplicados; paquete `mx.yoresuelvo.app`, API objetivo 36 y `google-services.json` disponible localmente | Falta configurar la llave de carga, validar un AAB firmado, compilar con Gradle en entorno Android, probar FCM en dispositivo y completar pista de publicación de Play Console |
 | 8 Expansión | Implementación técnica aplicada | Cobertura por municipio/oficio con prestadores aprobados; abrir una zona requiere oferta y operación validadas |
 | 9 Oportunidades | Implementación técnica aplicada | Intereses y publicaciones filtrados; el contacto continúa por solicitud/cotización/ticket |
 | 10 Privacidad | Implementación técnica aplicada | Preferencias y exportación de datos propios bajo RLS; eliminación de cuenta requiere política aparte |
@@ -88,3 +88,11 @@ La fase 0 tiene una especificación en `FASE_0_UX_UI.md`. La demo ficticia se co
 ## 15. Referencia de producto e implementación: Oficia
 
 La adaptación de navegación, perfiles, cotizaciones, paneles y criterios técnicos de Oficia está documentada en [`PLAN_IMPLEMENTACION.md`](PLAN_IMPLEMENTACION.md). Ese documento actualiza la secuencia operativa y deja explícito que la fase 5 sigue pendiente; el proyecto de YoResuelvo! mantiene Auth, datos y permisos independientes.
+
+## 16. Ruta de Android y Google Play
+
+El plan de publicación está en [`PLAN_PUBLICACION_GOOGLE_PLAY.md`](PLAN_PUBLICACION_GOOGLE_PLAY.md). La base técnica ya fija paquete `mx.yoresuelvo.app` y `targetSdkVersion = 36`, vigente desde el 31 de agosto de 2026. El script `npm run android:aab` existe, pero aún falta la firma release con llave de carga de Play App Signing; por eso no se declara listo un AAB instalable desde Play.
+
+Antes de subir un bundle, el plan incorpora dos bloqueadores de producto: solicitud de eliminación de cuenta dentro de la app y mediante enlace web; y controles para reportar contenido/usuarios y bloquear personas, además de moderación para los perfiles, fotos, reseñas y chat que YoResuelvo permite publicar. También exige Data safety, política de privacidad, términos, acceso para revisión, clasificación de contenido, pruebas internas/cerradas y monitoreo gradual de producción.
+
+La ruta replica el aprendizaje incremental de Oficia —fundación, flujo completo, confianza, pruebas, lanzamiento gradual y operación— manteniendo identidad, Supabase, Firebase y paquete Android propios. Si la cuenta es personal y se creó después del 13 de noviembre de 2023, Play exige al menos 12 testers optados-in de forma continua durante 14 días antes de solicitar producción; primero se debe confirmar el tipo y antigüedad de la cuenta.
