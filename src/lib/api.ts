@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Category, Municipality, Provider, ServiceRequest, Quote, Job, Ticket, PendingProvider, Address, Review, OwnReview, ModerationReview, Notification, Report, JobEvent, JobMessage, NotificationPreferences, Appeal, PendingAppeal, OperationalMetrics } from './types';
+import type { Category, Municipality, Provider, ServiceRequest, Quote, Job, Ticket, PendingProvider, Address, Review, OwnReview, ModerationReview, Notification, Report, JobEvent, JobMessage, SupportMessage, SupportThread, NotificationPreferences, Appeal, PendingAppeal, OperationalMetrics } from './types';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -255,6 +255,28 @@ export async function moderateReview(jobId: string, published: boolean, reason: 
 }
 export async function sendJobMessage(jobId: string, body: string) {
   const { error } = await requireDb().rpc('send_job_message', { p_job_id: jobId, p_body: body });
+  if (error) throw new Error(error.message);
+}
+export async function supportInbox(userId: string, staff: boolean): Promise<{ threads: SupportThread[]; messages: SupportMessage[] }> {
+  const client = requireDb();
+  const threadsResult = await client.from('support_threads').select('*').order('updated_at', { ascending: false }).limit(staff ? 100 : 1);
+  const threads = value(threadsResult) as SupportThread[];
+  if (!threads.length) return { threads, messages: [] };
+  const ids = staff ? threads.map(t => t.user_id) : [userId];
+  const messages = value(await client.from('support_messages').select('*').in('user_id', ids).order('created_at').limit(1000)) as SupportMessage[];
+  return { threads, messages };
+}
+export async function sendSupportMessage(threadId: string, body: string) {
+  const client = requireDb();
+  const { data: auth, error: authError } = await client.auth.getUser();
+  if (authError || !auth.user) throw new Error('Inicia sesión para escribir a Operaciones.');
+  const text = body.trim();
+  if (!text || text.length > 1500) throw new Error('Escribe un mensaje de hasta 1500 caracteres.');
+  if (threadId === auth.user.id) {
+    const { error } = await client.from('support_threads').upsert({ user_id: threadId }, { onConflict: 'user_id', ignoreDuplicates: true });
+    if (error) throw new Error(error.message);
+  }
+  const { error } = await client.from('support_messages').insert({ user_id: threadId, sender_id: auth.user.id, body: text });
   if (error) throw new Error(error.message);
 }
 export async function fileReportAppeal(reportId: string, reason: string) {
