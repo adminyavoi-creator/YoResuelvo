@@ -16,7 +16,7 @@ Archivos incluidos en `public/brand/`:
 - `yoresuelvo-icon-192.png`: icono PWA de 192 × 192.
 - `yoresuelvo-icon-180.png`: recurso de pantalla de inicio iOS.
 - `yoresuelvo-logo-horizontal.svg`: composición vectorial horizontal con descriptor.
-- `play-feature-graphic.svg`: máster vectorial de composición de tienda, 1024 × 500. Play Console requiere exportarla a PNG/JPEG antes de subirla.
+- `play-feature-graphic.svg`: máster vectorial de composición de tienda, 1024 × 500; `play-feature-graphic.jpg` es su exportación cargada y guardada en Play Console.
 
 La opción aprobada es la 06 · Profunda. El contorno del icono no debe recortarse ni redibujarse en los canales digitales. Usar un área libre de al menos 8% alrededor del símbolo. Para la ficha de Google Play, subir el PNG de 512 × 512 menor a 1 MB y revisar el resultado en las máscaras de Android.
 
@@ -38,7 +38,7 @@ La interfaz combina Manrope para titulares y DM Sans para lectura, controles y m
 - **PWA:** `landing.html` es la pantalla inicial instalada; su CTA abre la app en `/`.
 - **Android:** Capacitor sigue abriendo `index.html`; los iconos del launcher y splash usan el icono aprobado.
 - **Políticas:** privacidad, términos y eliminación de cuenta tienen páginas propias y enlaces desde la landing.
-- **Tienda:** el icono está listo. El gráfico de funciones aún debe exportarse a PNG/JPEG y faltan capturas actuales de la app.
+- **Tienda:** el icono y el gráfico de funciones están guardados en la ficha como borrador; faltan capturas actuales de la app.
 
 Las fotografías muestran trabajos reales o escenas de oficio, con autorización de imagen. No inventar perfiles, reseñas, precios, verificaciones ni tiempos de respuesta. Indicar si una imagen o ficha pertenece a una demo.
 
