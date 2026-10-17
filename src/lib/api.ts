@@ -23,7 +23,7 @@ export async function catalog(): Promise<{ categories: Category[]; municipalitie
   const [categoriesResult, municipalitiesResult, providersResult, linksResult, reviewsResult] = await Promise.all([
     client.from('categories').select('slug,name,position').order('position'),
     client.from('municipalities').select('slug,name,position').order('position'),
-    client.from('provider_profiles').select('id,display_name,bio,municipality_slug,approval_status,available')
+    client.from('provider_profiles').select('id,display_name,bio,municipality_slug,approval_status,available,years_experience,specialties,photo_paths')
       .eq('approval_status', 'approved').eq('available', true).order('created_at', { ascending: false }).limit(100),
     client.from('provider_categories').select('provider_id,category_slug'),
     client.rpc('published_reviews')
@@ -39,7 +39,7 @@ export async function catalog(): Promise<{ categories: Category[]; municipalitie
 
 export async function saveProvider(input: {
   id: string; display_name: string; bio: string; municipality_slug: string;
-  available: boolean; categories: string[]; exists: boolean;
+  available: boolean; categories: string[]; exists: boolean; years_experience: number | null; specialties: string[]; photo_paths: string[];
 }) {
   const client = requireDb();
   const { categories, exists, ...profile } = input;
@@ -55,6 +55,19 @@ export async function saveProvider(input: {
   const { error: insertError } = await client.from('provider_categories')
     .insert(categories.map(category_slug => ({ provider_id: input.id, category_slug })));
   if (insertError) throw new Error(insertError.message);
+}
+
+export async function uploadProviderPhoto(userId: string, file: File): Promise<string> {
+  if (!['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 4_000_000) throw new Error('Usa JPG, PNG o WebP de hasta 4 MB.');
+  const extension = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+  const path = `${userId}/${crypto.randomUUID()}.${extension}`;
+  const { error } = await requireDb().storage.from('provider-photos').upload(path, file, { contentType: file.type, upsert: false });
+  if (error) throw new Error(error.message);
+  return path;
+}
+
+export function providerPhotoUrl(path: string): string {
+  return requireDb().storage.from('provider-photos').getPublicUrl(path).data.publicUrl;
 }
 
 export async function workspace(userId: string) {

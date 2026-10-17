@@ -6,7 +6,7 @@ import {
   db, configured, catalog, workspace, saveProvider, createRequest, submitQuote,
   acceptQuote, pendingProviders, reviewProvider, saveAddress, setJobStatus,
   createReview, markNotificationRead, pendingReports, reviewQueue, moderateReview, sendJobMessage,
-  saveNotificationPreferences, exportMyData, fileReportAppeal, pendingAppeals, reviewReportAppeal, operationalMetrics
+  saveNotificationPreferences, exportMyData, fileReportAppeal, pendingAppeals, reviewReportAppeal, operationalMetrics, uploadProviderPhoto, providerPhotoUrl
 } from './lib/api';
 import { demoCategories, demoMunicipalities, demoProviders } from './lib/demo';
 import type {
@@ -21,6 +21,8 @@ const date = (v: string | null) => v
   ? new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Chihuahua' }).format(new Date(v))
   : 'Por acordar';
 const label = (items: { slug: string; name: string }[], slug: string) => items.find(i => i.slug === slug)?.name ?? slug;
+const serviceImage = (slug: string) => slug.includes('plom') ? '/images/plomeria.jpg' : slug.includes('electric') ? '/images/electricidad.jpg' : '/images/reparaciones.jpg';
+const providerImage = (p: Provider) => p.photo_paths?.[0] ? providerPhotoUrl(p.photo_paths[0]) : serviceImage(p.categories[0] ?? '');
 const errText = (error: unknown) => error instanceof Error ? error.message : 'No se pudo completar la operación.';
 const requestedPushPage = (): Page | null => {
   const screen = new URLSearchParams(window.location.search).get('screen');
@@ -62,6 +64,7 @@ export default function App() {
   const [category, setCategory] = useState('');
   const [compared, setCompared] = useState<string[]>([]);
   const [profilePreview, setProfilePreview] = useState<Provider | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
   const [requestOpen, setRequestOpen] = useState(false);
   const [requestCategory, setRequestCategory] = useState('');
   const [requestCity, setRequestCity] = useState('');
@@ -200,7 +203,9 @@ export default function App() {
         <button type="button" aria-current={page === 'tickets' ? 'page' : undefined} onClick={() => navigate('tickets')}>Tickets</button>
         {staffRole && <button type="button" aria-current={page === 'moderacion' ? 'page' : undefined} onClick={() => navigate('moderacion')}>Revisión</button>}
       </nav>
-      <button type="button" className="button outline account-button" onClick={() => navigate('cuenta')}>{user ? 'Mi cuenta' : 'Ingresar'}</button>
+      <button type="button" className="header-action" onClick={() => navigate('cuenta')} aria-label={user ? 'Mi cuenta y notificaciones' : 'Ingresar'}>
+        {user ? '♧' : '↗'}{notifications.some(item => !item.read_at) && <span className="notification-dot" />}
+      </button>
     </header>
     <main className="wrap">
       {!configured && <div className="demo-banner" role="status"><span>●</span> Vista de diseño · perfiles ficticios. <a href="/demo/">Abrir demo interactiva</a></div>}
@@ -208,46 +213,38 @@ export default function App() {
       {error && <p className="alert error" role="alert">{error}</p>}
       {message && <p className="alert success" role="status">{message}</p>}
       {page === 'explorar' && <>
-        <section className="hero">
-          <div>
-            <p className="eyebrow">GENTE CAPAZ, CERCA DE TI</p>
-            <h1>Eso que necesitas.<br /><em>Alguien lo resuelve.</em></h1>
-            <p>Descubre personas de tu región, compara opciones y acuerda el alcance antes de empezar.</p>
-            <div className="hero-actions"><a className="button primary" href="#catalogo">Buscar un servicio <span aria-hidden="true">→</span></a><button className="button light" type="button" onClick={() => navigate('ofrecer')}>Quiero ofrecer servicios</button></div>
-            <small>Sin pagos dentro de la app. El acuerdo se realiza directamente entre las partes.</small>
+        <section className="discovery" id="catalogo">
+          <div className="discovery-intro"><div><span className="location-kicker">⌖ {city ? label(municipalities, city) : 'Delicias y la región'}</span><h1>¿Qué necesitas <em>resolver hoy?</em></h1></div><button type="button" className="intro-avatar" onClick={() => navigate('cuenta')} aria-label="Abrir mi perfil">{user?.user_metadata?.avatar_url ? <img src={user.user_metadata.avatar_url as string} alt="" /> : '☺'}</button></div>
+          <div className="search-row"><label className="search-box"><span aria-hidden="true">⌕</span><span className="sr-only">Buscar servicio o persona</span><input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Busca un servicio o persona" /></label><button type="button" className="filter-toggle" aria-expanded={showFilters} aria-controls="discovery-filters" onClick={() => setShowFilters(value => !value)} aria-label="Filtros">☷</button></div>
+          <div id="discovery-filters" className={`quick-filters${showFilters ? ' open' : ''}`}>
+            <label>Ubicación<select value={city} onChange={e => { setCity(e.target.value); setCompared([]); }}><option value="">Toda la región</option>{municipalities.map(m => <option key={m.slug} value={m.slug}>{m.name}</option>)}</select></label>
+            <label>Servicio<select value={category} onChange={e => { setCategory(e.target.value); setCompared([]); }}><option value="">Todos los servicios</option>{categories.map(c => <option key={c.slug} value={c.slug}>{c.name}</option>)}</select></label>
           </div>
-          <div className="hero-visual" aria-hidden="true"><div className="symbol"><img src="/logo.svg" alt="" /></div><span className="visual-tag tag-a">Talento local</span><span className="visual-tag tag-b">Delicias · tu región</span></div>
-        </section>
-        <section id="catalogo" className="section">
-          <div className="section-head"><div><p className="eyebrow">ENCUENTRA A TU PERSONA</p><h2>¿Qué quieres resolver?</h2><p>Busca por oficio, municipio o tarea.</p></div><span className="count">{filtered.length} perfiles {configured ? 'disponibles' : 'de ejemplo'}</span></div>
-          <div className="filters">
-            <label>Buscar tarea<input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Ej. reparar una fuga" /></label>
-            <label>Municipio<select value={city} onChange={e => { setCity(e.target.value); setCompared([]); }}><option value="">Toda la región</option>{municipalities.map(m => <option key={m.slug} value={m.slug}>{m.name}</option>)}</select></label>
-            <label>Servicio<select value={category} onChange={e => { setCategory(e.target.value); setCompared([]); }}><option value="">Todos</option>{categories.map(c => <option key={c.slug} value={c.slug}>{c.name}</option>)}</select></label>
-          </div>
+          {!search && !category && <div className="featured-strip" aria-label="Servicios destacados"><div className="featured-track">
+            {[{ image: '/images/electricidad.jpg', tag: 'Tu hogar en buenas manos', title: 'Encuentra a quien sabe hacerlo', slug: 'electricidad' }, { image: '/images/plomeria.jpg', tag: 'Talento de tu región', title: 'Soluciones cerca de ti', slug: 'plomeria' }, { image: '/images/reparaciones.jpg', tag: 'Conecta y resuelve', title: 'El siguiente proyecto empieza aquí', slug: 'cerrajeria' }].map(slide => <button type="button" className="featured-slide" key={slide.image} onClick={() => setCategory(slide.slug)}>
+              <img src={slide.image} alt="" /><span className="featured-overlay"><small>{slide.tag}</small><strong>{slide.title}</strong><span>Explorar servicio <b aria-hidden="true">↗</b></span></span>
+            </button>)}
+          </div></div>}
+          <div className="browse-heading"><h2>Explora servicios</h2><button type="button" onClick={() => { setCategory(''); setSearch(''); }}>Ver todos →</button></div>
           <div className="category-shortcuts" aria-label="Explorar por categoría">
-            <p className="eyebrow">EXPLORA POR CATEGORÍA</p>
             <div className="category-grid">{categories.slice(0, 8).map(item => <button key={item.slug} type="button"
               className={`category-tile${category === item.slug ? ' active' : ''}`} aria-pressed={category === item.slug}
               onClick={() => { setCategory(current => current === item.slug ? '' : item.slug); setCompared([]); }}>
               <span className="category-icon" aria-hidden="true"><CategoryIcon slug={item.slug} /></span><span>{item.name}</span>
             </button>)}</div>
           </div>
-          {filtered.length ? <div className="cards">{filtered.map(p => <article className="card" key={p.id}>
-            <div className="card-head"><span className="avatar" aria-hidden="true">{p.display_name.slice(0, 1)}</span><div><h3>{p.display_name}</h3><small>{p.categories.map(c => label(categories, c)).join(' · ')}</small></div></div>
-            <p className="place">⌖ {label(municipalities, p.municipality_slug)} · {configured ? 'Perfil aprobado' : 'Ejemplo visual'}</p>
-            <p className={`provider-availability${p.available ? '' : ' paused'}`}><span aria-hidden="true">●</span> {p.available ? 'Recibe solicitudes' : 'No disponible por ahora'}</p>
-            {configured && (() => { const ratings = reviews.filter(r => r.provider_id === p.id); return ratings.length
-              ? <p className="rating">★ {(ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length).toFixed(1)} · {ratings.length} reseña{ratings.length === 1 ? '' : 's'}</p>
-              : <p className="fine">Aún sin reseñas en la plataforma</p>; })()}
-            <p>{p.bio}</p><button type="button" className="profile-link" onClick={() => setProfilePreview(p)}>Conocer perfil <span aria-hidden="true">→</span></button>
-            <p className="fine">Cotización según tarea, materiales y traslado. {configured ? 'Precio según propuesta aceptada.' : 'Datos ficticios.'}</p>
+          <div className="browse-heading pros-heading"><div><h2>Personas que resuelven</h2><small>{filtered.length} {filtered.length === 1 ? 'perfil' : 'perfiles'} en tu búsqueda</small></div><button type="button" onClick={() => navigate('ofrecer')}>Ofrecer servicios ↗</button></div>
+          {filtered.length ? <div className="cards provider-cards">{filtered.map(p => { const ratings = reviews.filter(r => r.provider_id === p.id); return <article className="card provider-card" key={p.id}>
+            <button type="button" className="provider-photo" onClick={() => setProfilePreview(p)} aria-label={`Conocer a ${p.display_name}`}><img src={providerImage(p)} alt={p.photo_paths?.length ? `Trabajo de ${p.display_name}` : ''} loading="lazy" />{!p.photo_paths?.length && <span>Foto ilustrativa del servicio</span>}</button>
+            <div className="provider-info"><div className="provider-top"><span className="service-pill">{label(categories, p.categories[0] ?? '')}</span><span className={`availability-dot${p.available ? '' : ' paused'}`}>{p.available ? '● Disponible' : '● Pausado'}</span></div>
+            <h3>{p.display_name}</h3><p className="provider-location">⌖ {label(municipalities, p.municipality_slug)} · {city === p.municipality_slug ? 'Tu municipio' : 'En la región'}</p>
+            <p className="provider-bio">{p.bio}</p><div className="provider-stats"><span>{ratings.length ? `★ ${(ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length).toFixed(1)} · ${ratings.length} reseñas` : '☆ Sin reseñas aún'}</span><span>{p.years_experience ? `${p.years_experience} años de experiencia` : 'Experiencia en perfil'}</span></div>
             <div className="card-actions"><button type="button" className="button outline" aria-pressed={compared.includes(p.id)}
               disabled={!p.available || (compared.length >= 3 && !compared.includes(p.id))}
               onClick={() => setCompared(ids => ids.includes(p.id) ? ids.filter(id => id !== p.id) : [...ids, p.id])}>
               {compared.includes(p.id) ? '✓ Elegido' : '＋ Comparar'}
-            </button><button type="button" className="button primary" disabled={!p.available} onClick={() => startRequest([p])}>{p.available ? 'Solicitar' : 'No disponible'}</button></div>
-          </article>)}</div> : <div className="empty"><h3>Sin perfiles para estos filtros</h3><p>Prueba otro municipio o servicio. Una cuenta nueva puede tardar en ser aprobada.</p><button className="button outline" type="button" onClick={() => { setSearch(''); setCity(''); setCategory(''); }}>Limpiar filtros</button></div>}
+            </button><button type="button" className="button primary" onClick={() => setProfilePreview(p)}>Ver perfil →</button></div></div>
+          </article>; })}</div> : <div className="empty"><h3>Sin perfiles para estos filtros</h3><p>Prueba otro municipio o servicio.</p><button className="button outline" type="button" onClick={() => { setSearch(''); setCity(''); setCategory(''); }}>Limpiar filtros</button></div>}
           {compared.length > 0 && <section className="compare" aria-label="Comparación de prestadores"><div className="section-head"><h3>Compara hasta tres</h3><button className="text-button" onClick={() => setCompared([])}>Limpiar</button></div><div className="compare-grid">{compared.map(id => {
             const p = providers.find(item => item.id === id);
             return p && <div key={id}><strong>{p.display_name}</strong><span>{label(municipalities, p.municipality_slug)}</span><span>{p.categories.map(c => label(categories, c)).join(', ')}</span><p>{p.bio}</p></div>;
@@ -325,8 +322,11 @@ export default function App() {
       <button type="button" onClick={() => { if (page !== 'explorar') navigate('explorar'); window.setTimeout(() => document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth' }), 0); }}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></svg><span>Explorar</span>
       </button>
+      <button type="button" aria-current={page === 'solicitudes' ? 'page' : undefined} onClick={() => navigate('solicitudes')}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12a2 2 0 0 1 2 2v16l-4-2-4 2-4-2-4 2V5a2 2 0 0 1 2-2Z" /><path d="M8 9h8m-8 4h6" /></svg><span>Solicitudes</span>
+      </button>
       <button type="button" aria-current={page === 'tickets' ? 'page' : undefined} onClick={() => navigate('tickets')}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4z" /><path d="M12 7v2m0 3v2m0 3v1" /></svg><span>Tickets</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v13H8l-5 4V5Z" /><path d="M7 10h10m-10 4h7" /></svg><span>Chat</span>
       </button>
       <button type="button" aria-current={page === 'cuenta' ? 'page' : undefined} onClick={() => navigate('cuenta')}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg><span>Perfil</span>
@@ -358,14 +358,19 @@ function ProviderProfileDialog({ provider, categories, municipalities, reviews, 
     <section className="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="provider-profile-title" tabIndex={-1}
       onKeyDown={event => { if (event.key === 'Escape') onClose(); }}>
       <button className="profile-dialog-close" type="button" aria-label="Cerrar perfil" autoFocus onClick={onClose}>×</button>
+      <div className="profile-gallery" aria-label="Galería de servicios">
+        {provider.photo_paths?.length ? provider.photo_paths.map((path, index) => <img key={path} src={providerPhotoUrl(path)} alt={`Foto ${index + 1} de ${provider.display_name}`} />)
+          : [provider.categories[0] ?? '', 'plomeria', 'reparaciones'].map((slug, index) => <img key={`${slug}-${index}`} src={serviceImage(slug)} alt={`Imagen ilustrativa del servicio ${index + 1}`} />)}
+      </div>{!provider.photo_paths?.length && <p className="image-disclosure">Imágenes ilustrativas del oficio. Este perfil aún no tiene fotos propias.</p>}
       <div className="profile-dialog-head"><span className="avatar profile-avatar" aria-hidden="true">{provider.display_name.slice(0, 1)}</span>
-        <div><p className="eyebrow">PERFIL DE SERVICIO</p><h2 id="provider-profile-title">{provider.display_name}</h2>
-          <p>{provider.categories.map(id => label(categories, id)).join(' · ')}</p></div></div>
+        <div><p className="eyebrow">{provider.categories.map(id => label(categories, id)).join(' · ')}</p><h2 id="provider-profile-title">{provider.display_name}</h2>
+          <p>Profesional en {label(municipalities, provider.municipality_slug)}</p></div></div>
       <div className="profile-facts"><span>⌖ {label(municipalities, provider.municipality_slug)}</span>
         <span className={provider.available ? 'status' : 'status paused'}>{provider.available ? 'Recibe solicitudes' : 'No disponible por ahora'}</span>
         {average ? <span className="profile-rating">★ {average} · {reviews.length} reseña{reviews.length === 1 ? '' : 's'}</span> : <span>Aún sin reseñas verificadas</span>}
       </div>
-      <div className="profile-dialog-copy"><h3>Acerca del prestador</h3><p>{provider.bio}</p>
+      <div className="profile-highlights"><div><strong>{reviews.length || '—'}</strong><span>Reseñas</span></div><div><strong>{provider.years_experience ? `${provider.years_experience} años` : 'Por agregar'}</strong><span>Experiencia</span></div><div><strong>Por confirmar</strong><span>Tiempo de respuesta</span></div></div>
+      <div className="profile-dialog-copy"><h3>Experiencia y servicios</h3><p>{provider.bio}</p>{Boolean(provider.specialties?.length) && <div className="specialty-tags">{provider.specialties?.map(item => <span key={item}>{item}</span>)}</div>}
         <p className="fine">El precio y el alcance se acuerdan mediante una cotización antes de iniciar. YoResuelvo! no procesa el pago.</p></div>
       <div className="profile-reviews"><h3>Reseñas de servicios completados</h3>{recentReviews.length ? recentReviews.map((review, index) => <article key={`${review.created_at}-${index}`}>
         <strong>★ {review.rating}/5</strong><p>{review.body}</p><small>{date(review.created_at)}</small></article>)
@@ -610,27 +615,43 @@ function RequestForm({ providers, categories, municipalities, initialCategory, i
 function ProviderPage({ user, current, categories, municipalities, configured: active, busy, onSignIn, onSave }: {
   user: User | null; current: Provider | null; categories: Category[]; municipalities: Municipality[];
   configured: boolean; busy: boolean; onSignIn: () => void;
-  onSave: (input: { id: string; display_name: string; bio: string; municipality_slug: string; available: boolean; categories: string[]; exists: boolean }) => Promise<void>;
+  onSave: (input: { id: string; display_name: string; bio: string; municipality_slug: string; available: boolean; categories: string[]; exists: boolean; years_experience: number | null; specialties: string[]; photo_paths: string[] }) => Promise<void>;
 }) {
   const [name, setName] = useState(''); const [bio, setBio] = useState('');
   const [city, setCity] = useState('delicias'); const [selected, setSelected] = useState<string[]>([]);
   const [available, setAvailable] = useState(true);
-  useEffect(() => { if (current) { setName(current.display_name); setBio(current.bio); setCity(current.municipality_slug); setSelected(current.categories); setAvailable(current.available); } }, [current]);
+  const [years, setYears] = useState(''); const [specialties, setSpecialties] = useState('');
+  const [photos, setPhotos] = useState<string[]>([]); const [uploading, setUploading] = useState(false); const [uploadError, setUploadError] = useState('');
+  useEffect(() => { if (current) { setName(current.display_name); setBio(current.bio); setCity(current.municipality_slug); setSelected(current.categories); setAvailable(current.available); setYears(current.years_experience?.toString() ?? ''); setSpecialties(current.specialties?.join(', ') ?? ''); setPhotos(current.photo_paths ?? []); } }, [current]);
+  async function addPhotos(files: FileList | null) {
+    if (!files || !user) return;
+    setUploadError(''); setUploading(true);
+    try {
+      const chosen = Array.from(files).slice(0, 5 - photos.length);
+      for (const file of chosen) {
+        const path = await uploadProviderPhoto(user.id, file);
+        setPhotos(current => [...current, path]);
+      }
+    } catch (e) { setUploadError(errText(e)); }
+    finally { setUploading(false); }
+  }
   return <section className="section"><p className="eyebrow">QUIERO OFRECER SERVICIOS</p><h1>Lo que sabes hacer,<br />alguien lo necesita.</h1>
     <div className="steps"><div><b>01</b><h3>Presenta tus habilidades</h3><p>Oficio, municipio, disponibilidad y experiencia.</p></div><div><b>02</b><h3>Recibe solicitudes</h3><p>Solo tras la revisión del perfil y según tu oficio y zona.</p></div><div><b>03</b><h3>Propón un alcance</h3><p>Explica materiales, traslado, vigencia y total antes de acordar.</p></div></div>
     {!active ? <p className="alert">El alta real se habilita con el proyecto independiente. <a href="/demo/">Ver la demo</a>.</p>
       : !user ? <button type="button" className="button primary" onClick={onSignIn}>Ingresar para crear perfil</button>
       : <form className="panel form" onSubmit={e => { e.preventDefault(); void onSave({
-        id: user.id, display_name: name, bio, municipality_slug: city, available, categories: selected, exists: Boolean(current)
+        id: user.id, display_name: name, bio, municipality_slug: city, available, categories: selected, exists: Boolean(current), years_experience: years ? Number(years) : null, specialties: specialties.split(',').map(item => item.trim()).filter(Boolean).slice(0, 8), photo_paths: photos
       }); }}>
         <div className="section-head"><h2>{current ? 'Edita tu perfil' : 'Crea tu perfil'}</h2>{current && <span className="status">Estado: {({ pending: 'En revisión', approved: 'Aprobado', rejected: 'Rechazado', suspended: 'Suspendido' } as Record<string,string>)[current.approval_status]}</span>}</div>
         <label>Nombre público o nombre comercial<input required minLength={3} maxLength={80} value={name} onChange={e => setName(e.target.value)} /></label>
         <label>Experiencia y servicios<textarea required minLength={20} maxLength={800} value={bio} onChange={e => setBio(e.target.value)} placeholder="Describe lo que haces sin compartir teléfono ni domicilio." /></label>
+        <div className="form-row"><label>Años de experiencia<input type="number" min="0" max="60" value={years} onChange={e => setYears(e.target.value)} placeholder="Ej. 5" /></label><label>Especialidades<input maxLength={240} value={specialties} onChange={e => setSpecialties(e.target.value)} placeholder="Instalación, mantenimiento…" /></label></div>
+        <div className="provider-photo-editor"><strong>Fotografías de tu trabajo</strong><p className="fine">Hasta cinco imágenes JPG, PNG o WebP de 4 MB. Serán públicas en tu perfil.</p><div className="photo-editor-track">{photos.map(path => <div key={path}><img src={providerPhotoUrl(path)} alt="Trabajo subido" /><button type="button" onClick={() => setPhotos(current => current.filter(item => item !== path))} aria-label="Quitar fotografía del perfil">×</button></div>)}</div>{photos.length < 5 && <label className="button outline">{uploading ? 'Subiendo…' : '＋ Agregar fotos'}<input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden disabled={uploading} onChange={e => { void addPhotos(e.target.files); e.target.value = ''; }} /></label>}{uploadError && <p role="alert" className="alert error">{uploadError}</p>}</div>
         <label>Municipio de cobertura<select value={city} onChange={e => setCity(e.target.value)}>{municipalities.map(m => <option key={m.slug} value={m.slug}>{m.name}</option>)}</select></label>
         <fieldset><legend>Oficios</legend><div className="checks">{categories.map(c => <label key={c.slug}><input type="checkbox" checked={selected.includes(c.slug)} onChange={() => setSelected(current => current.includes(c.slug) ? current.filter(id => id !== c.slug) : [...current, c.slug])} /> {c.name}</label>)}</div></fieldset>
         <label className="inline"><input type="checkbox" checked={available} onChange={e => setAvailable(e.target.checked)} /> Disponible para nuevas solicitudes</label>
         <p className="fine">Cambiar el nombre, descripción o municipio de un perfil aprobado lo devuelve a revisión. No publiques datos de contacto privados.</p>
-        <button type="submit" className="button primary" disabled={busy || !selected.length}>Guardar perfil</button>
+        <button type="submit" className="button primary" disabled={busy || uploading || !selected.length}>Guardar perfil</button>
       </form>}
   </section>;
 }
@@ -704,7 +725,7 @@ function TicketsPage({ user, jobs, tickets, requests, addresses, ownReviews, eve
   onMessage: (jobId: string, body: string) => Promise<void>;
   onAppeal: (reportId: string, reason: string) => Promise<void>;
 }) {
-  return <section className="section"><p className="eyebrow">ACUERDOS A LA VISTA</p><h1>Mis tickets</h1>
+  return <section className="section"><p className="eyebrow">SERVICIOS EN MARCHA</p><h1>Mis servicios y chat</h1>
     {!active ? <p className="empty"><a href="/demo/#tickets">Ver tickets de demostración</a></p>
       : !user ? <button className="button primary" onClick={onSignIn}>Ingresar para consultar</button>
       : tickets.length ? <div className="ticket-list">{tickets.map(t => {
@@ -781,9 +802,9 @@ function TicketCard({ ticket, job, user, request, address, review, events, messa
       {appeals.map(appeal => <AppealTicketCard key={appeal.report_id} appeal={appeal} busy={busy} onAppeal={onAppeal} />)}
       <p className="fine">La apelación solicita una segunda revisión operativa; no arbitra pagos ni determina reembolsos.</p>
     </section>}
-    <section className="conversation no-print" aria-label="Mensajes privados del servicio"><h3>Mensajes privados</h3>
-      {messages.length ? <div className="notice-list">{messages.map(m => <div className="notice" key={m.id}><strong>{m.sender_id === user.id ? 'Tú' : 'La otra parte'}</strong><p>{m.body}</p><small>{date(m.created_at)}</small></div>)}</div> : <p className="fine">Aún no hay mensajes. No compartas datos bancarios ni información innecesaria.</p>}
-      <form className="form" onSubmit={e => { e.preventDefault(); if (messageBody.trim()) { void onMessage(job.id, messageBody); setMessageBody(''); } }}><label>Escribe a la otra parte<textarea required minLength={1} maxLength={1500} value={messageBody} onChange={e => setMessageBody(e.target.value)} /></label><button className="button outline" type="submit" disabled={busy}>Enviar mensaje</button></form>
+    <section className="conversation no-print" aria-label="Mensajes privados del servicio"><div className="conversation-title"><span>☏</span><div><h3>Chat del servicio</h3><small>Solo tú y la otra parte</small></div></div>
+      {messages.length ? <div className="chat-messages">{messages.map(m => <div className={`chat-bubble${m.sender_id === user.id ? ' own' : ''}`} key={m.id}><p>{m.body}</p><small>{date(m.created_at)}</small></div>)}</div> : <p className="chat-empty">Aquí podrás conversar cuando haya un servicio confirmado.</p>}
+      <form className="chat-composer" onSubmit={e => { e.preventDefault(); if (messageBody.trim()) { void onMessage(job.id, messageBody); setMessageBody(''); } }}><label className="sr-only" htmlFor={`chat-${job.id}`}>Mensaje privado</label><input id={`chat-${job.id}`} required maxLength={1500} value={messageBody} onChange={e => setMessageBody(e.target.value)} placeholder="Escribe un mensaje…" /><button type="submit" disabled={busy || !messageBody.trim()} aria-label="Enviar mensaje">➤</button></form>
     </section>
     {events.length > 0 && <details className="history no-print"><summary>Historial de estados</summary><ol>{events.map(e => <li key={e.id}>{date(e.created_at)} · {e.previous_status ?? 'Inicio'} → {e.next_status}{e.reason ? ` · ${e.reason}` : ''}</li>)}</ol></details>}
     <button className="button outline no-print" type="button" onClick={event => {

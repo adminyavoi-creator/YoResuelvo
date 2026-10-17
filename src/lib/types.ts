@@ -4,6 +4,7 @@ export type Provider = {
   id: string; display_name: string; bio: string; municipality_slug: string;
   approval_status: 'pending' | 'approved' | 'rejected' | 'suspended'; available: boolean;
   categories: string[];
+  years_experience?: number | null; specialties?: string[]; photo_paths?: string[];
 };
 export type ServiceRequest = {
   id: string; client_id: string; category_slug: string; municipality_slug: string;
