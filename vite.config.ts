@@ -23,5 +23,12 @@ function firebaseWorkerConfig(values: Record<string, string>): Plugin {
 
 export default defineConfig(({ mode }) => {
   const values = loadEnv(mode, new URL('.', import.meta.url).pathname, 'VITE_');
-  return { plugins: [react(), firebaseWorkerConfig(values)] };
+  return {
+    plugins: [react(), firebaseWorkerConfig(values)],
+    build: {
+      rollupOptions: {
+        input: ['index.html', 'landing.html', 'privacy.html', 'terms.html', 'delete-account.html'],
+      },
+    },
+  };
 });

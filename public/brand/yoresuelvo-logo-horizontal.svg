@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 160" role="img" aria-labelledby="title desc">
+  <title id="title">YoResuelvo!</title>
+  <desc id="desc">Logotipo de YoResuelvo! con el icono de cliente y especialista.</desc>
+  <image href="yoresuelvo-icon-512.png" x="8" y="8" width="144" height="144" />
+  <text x="177" y="93" fill="#223745" font-family="Manrope, Arial, sans-serif" font-size="58" font-weight="800" letter-spacing="-2.4">YoResuelvo</text>
+  <text x="615" y="93" fill="#C64F1D" font-family="Manrope, Arial, sans-serif" font-size="58" font-weight="800">!</text>
+  <text x="181" y="126" fill="#586773" font-family="DM Sans, Arial, sans-serif" font-size="14" font-weight="700" letter-spacing="3.2">SERVICIOS LOCALES · DELICIAS Y LA REGIÓN</text>
+</svg>

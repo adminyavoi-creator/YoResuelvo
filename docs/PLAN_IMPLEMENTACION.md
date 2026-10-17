@@ -1,7 +1,7 @@
 # Plan de implementación · YoResuelvo! con referencia Oficia
 
 **Actualizado:** 17 de octubre de 2026  
-**Estado:** base PWA/Capacitor y Supabase en producción; publicación de Android en Play no iniciada. Package ID y API objetivo están definidos; faltan seguridad de UGC/eliminación, llave de carga, AAB firmado, pruebas por tracks y elegibilidad de cuenta.
+**Estado:** base PWA/Capacitor y Supabase en producción; publicación de Android en Play no iniciada. Package ID y API objetivo están definidos; faltan auditoría de UGC/RLS, pruebas E2E controladas, llave de carga, AAB firmado, pruebas por tracks y elegibilidad de cuenta.
 
 ## Objetivo
 
@@ -31,7 +31,7 @@ Se conservan la separación de proyectos, las migraciones y las políticas RLS d
 
 ## Sistema de experiencia
 
-La referencia adjunta define el tablero cálido de YoResuelvo!: naranja, coral, terracota, marfil y tinta; marca visible, botones claros, tarjetas redondeadas y estados fáciles de distinguir. La entrada empieza con elección entre “Busco un servicio” y “Quiero ofrecer servicios”; Google es el botón principal y correo, registro y recuperación son alternativas. Una vez dentro, la cuenta puede cambiar de recorrido. La secuencia de pantallas queda así:
+La identidad aprobada es la opción 06 · Profunda: azul profundo `#223745`, naranja quemado `#C64F1D`, miel `#F2B441`, arcilla `#E9B99D` y marfil `#FFF7ED`. La PWA, Android, launcher, landing, navegación, controles y tarjetas comparten estos tokens; clientes y especialistas se diferencian también con imagen e iconografía, no solo por color. La entrada empieza con elección entre “Busco un servicio” y “Quiero ofrecer servicios”; Google es el botón principal y correo, registro y recuperación son alternativas. Una vez dentro, la cuenta puede cambiar de recorrido. La secuencia de pantallas queda así:
 
 1. **Inicio:** municipio, búsqueda de una tarea, accesos a categorías y prestadores destacados.
 2. **Perfil:** quién presta el servicio, qué realiza, zona, disponibilidad y reseñas que provienen de trabajos completados.
@@ -39,6 +39,10 @@ La referencia adjunta define el tablero cálido de YoResuelvo!: naranja, coral, 
 4. **Ticket:** folio, acuerdo aceptado, participantes, fecha y estado; dirección exacta solo para cliente y prestador contratados.
 
 En esta actualización se incorporan accesos móviles inferiores, categorías con iconos y una ficha consultable de prestador con solicitud y comparación. Las imágenes de portafolio y las tarifas orientativas no se simulan en perfiles reales: requieren datos consentidos y validados. La demo permanece identificada como ficticia.
+
+### Entrada de la PWA y app Android
+
+La PWA instalada inicia en `landing.html`, una bienvenida visual con acceso a buscar u ofrecer servicios y enlaces públicos a privacidad, términos y eliminación. El CTA entra al frontend de la app en `/`. Android Capacitor conserva su entrada actual en `index.html`; su inicio nativo no se reemplaza por la landing.
 
 ## Plan por fases y criterios de salida
 
@@ -48,15 +52,15 @@ En esta actualización se incorporan accesos móviles inferiores, categorías co
 | 1 · Fundación y acceso | React/TS, Supabase Auth con sesión persistente PKCE, acceso inicial por Google preparado para web/Android, correo/contraseña, alta y recuperación. | Configurar el OAuth Client propio, habilitar Google en Supabase y permitir URL web y `mx.yoresuelvo.app://auth/callback`; probar el recorrido con cuentas reales. |
 | 2 · Oferta local | Alta, revisión, categorías, cobertura, catálogo y disponibilidad implementados. | Aprobar prestadores reales y validar oficios, zona y datos publicados. Portafolio con fotos queda para una entrega posterior con consentimiento, control de acceso y moderación. |
 | 3 · Solicitud y acuerdo | Solicitud, hasta cinco invitaciones, cotizaciones inmutables, aceptación única, ticket y dirección privada implementados. | E2E con dos cuentas reales: enviar, cotizar, comparar, aceptar, cambiar estado, cancelar y revisar que terceros no vean datos privados. Adjuntos siguen pendientes. |
-| 4 · Confianza y soporte | Estados, historial, reseñas verificadas, avisos internos, mensajes, reportes, apelaciones, métricas y base de push están implementados. La cola y la Edge Function FCM se añadieron a Supabase. | Configurar Firebase, credenciales, consentimiento y tarea `pg_cron`; verificar entrega, preferencias, bajas de tokens, reintentos y retorno desde push en PWA/Android. |
+| 4 · Confianza y soporte | Estados, historial, reseñas verificadas, avisos internos, mensajes, reportes, apelaciones, métricas y base de push están implementados. La cola y la Edge Function FCM se añadieron a Supabase. La política de baja acordada ya está implementada en Supabase producción. | Probar la baja con una cuenta controlada; configurar Firebase, credenciales y consentimiento; verificar entrega, preferencias, bajas de tokens, reintentos y retorno desde push en PWA/Android. |
 | 5 · Piloto controlado | **Pendiente.** Una compilación aprobada no prueba la operación en campo. | Auditoría focal de RPC y RLS; accesibilidad; pruebas Android/iOS/escritorio; respaldo restaurado; política de privacidad, conservación y soporte; contratación piloto con usuarios reales y registro de incidencias. Solo entonces decidir apertura. |
 | 6 · Release Android / Play | Paquete `mx.yoresuelvo.app`, `targetSdk 36`, configuración Firebase Android local y comando `android:aab` presentes; firma release y ficha Play no configuradas | Resolver los bloqueadores de privacidad y contenido UGC, Play App Signing, AAB firmado y validado, internal/closed testing, requisito de acceso a producción si aplica y despliegue gradual. Ruta detallada en [`PLAN_PUBLICACION_GOOGLE_PLAY.md`](PLAN_PUBLICACION_GOOGLE_PLAY.md). |
 
-Los incrementos de comunicación, privacidad, apelaciones, métricas y smoke checks que los documentos anteriores llamaban fases 6–13 están aplicados técnicamente. La PWA comparte la interfaz con el proyecto Android generado por Capacitor. La canalización push está lista en código y base de datos; falta verificar secretos/worker de Supabase, el programador seguro y la entrega en dispositivos. Correo transaccional y adjuntos siguen pendientes; la fase 5 continúa abierta.
+Los incrementos de comunicación, exportación, apelaciones, métricas y smoke checks que los documentos anteriores llamaban fases 6–13 están aplicados técnicamente. El alcance de eliminación quedó definido y desplegado en Supabase producción: borrar los datos asociados a la cuenta, incluidas conversaciones y reseñas; cancelar solicitudes contratadas cuyo proveedor seleccionado se elimina; y conservar solo el ticket como snapshot de seguridad, desvinculado de la cuenta. La migración `account_deletion_cascades` y la Edge Function `delete-account` v1 están activas. Durante el despliegue no se eliminó ninguna cuenta; falta probar el recorrido completo con una cuenta controlada y publicar/verificar la ruta web desde la app. La PWA instalada abre la landing; Android Capacitor mantiene su entrada en `index.html`. La canalización push está lista en código y base de datos; falta verificar secretos/worker de Supabase, el programador seguro y la entrega en dispositivos. Correo transaccional y adjuntos siguen pendientes; la fase 5 continúa abierta.
 
 ### Controles de confianza para la fase 5
 
-Antes de un piloto se debe revisar la autorización de cada RPC y los permisos de acceso a datos, confirmar qué información es pública o privada, restaurar un respaldo y validar accesibilidad y soporte. Estos controles no se consideran cerrados por una compilación o por pruebas de dominio; la fase 5 permanece pendiente hasta completar las verificaciones con el equipo y usuarios reales.
+Antes de un piloto se debe revisar la autorización de cada RPC y los permisos de acceso a datos, confirmar qué información es pública o privada, restaurar un respaldo y validar accesibilidad y soporte. La revisión de Supabase del 17 de octubre no encontró FKs sin índice tras añadir índices a tickets y cola push. Siguen pendientes de revisión los avisos del Security Advisor por protección de contraseñas filtradas deshabilitada, `published_reviews()` ejecutable como SECURITY DEFINER sin sesión y funciones SECURITY DEFINER disponibles para usuarios autenticados; revisar sus grants y validaciones internas. Las tablas del esquema privado sin políticas RLS están deliberadamente cerradas. Estos controles no se consideran cerrados por una compilación o por pruebas de dominio; la fase 5 permanece pendiente hasta completar las verificaciones con el equipo y usuarios reales.
 
 ### Secuencia inmediata
 

@@ -61,7 +61,7 @@ export default function App() {
   const [metrics, setMetrics] = useState<OperationalMetrics | null>(null);
   const [search, setSearch] = useState('');
   const [city, setCity] = useState('');
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState(() => new URLSearchParams(window.location.search).get('categoria') ?? '');
   const [compared, setCompared] = useState<string[]>([]);
   const [profilePreview, setProfilePreview] = useState<Provider | null>(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -194,7 +194,7 @@ export default function App() {
   return <div className="app-shell">
     <header className="header wrap">
       <button type="button" className="brand" onClick={() => navigate('explorar')} aria-label="YoResuelvo!, inicio">
-        <img src="/logo.svg" alt="" /><span>YoResuelvo<span className="brand-mark">!</span><small>DELICIAS Y LA REGIÓN</small></span>
+        <img src="/brand/yoresuelvo-icon-512.png" alt="" /><span>YoResuelvo<span className="brand-mark">!</span><small>DELICIAS Y LA REGIÓN</small></span>
       </button>
       <nav aria-label="Navegación principal">
         <button type="button" aria-current={page === 'explorar' ? 'page' : undefined} onClick={() => navigate('explorar')}>Explorar</button>
@@ -332,7 +332,7 @@ export default function App() {
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg><span>Perfil</span>
       </button>
     </nav>
-    <footer className="wrap"><span>YoResuelvo! · Delicias y la región</span><small>Los tickets registran acuerdos de servicio; no son facturas ni comprobantes de pago.</small></footer>
+    <footer className="wrap app-footer"><span>YoResuelvo! · Delicias y la región</span><small>Los tickets registran acuerdos de servicio; no son facturas ni comprobantes de pago.</small><nav className="policy-links" aria-label="Privacidad y ayuda"><a href="/privacy.html">Aviso de privacidad</a><a href="/terms.html">Términos de uso</a><a href="/delete-account.html">Eliminar cuenta</a></nav></footer>
   </div>;
 }
 
@@ -491,7 +491,7 @@ function Account({ user, notifications, preferences, onRead, onSavePreferences, 
   const displayName = String(user?.user_metadata.display_name ?? user?.user_metadata.full_name ?? user?.email ?? 'Tu cuenta');
   return <section className="section auth-section">
     <aside className="auth-aside">
-      <div className="auth-brand"><img src="/logo.svg" alt="" /><span>YoResuelvo<span>!</span><small>DELICIAS Y LA REGIÓN</small></span></div>
+      <div className="auth-brand"><img src="/brand/yoresuelvo-icon-512.png" alt="" /><span>YoResuelvo<span>!</span><small>DELICIAS Y LA REGIÓN</small></span></div>
       <p className="auth-kicker">GENTE CAPAZ, CERCA DE TI</p>
       <h1>{recovery ? 'Recupera el control de tu cuenta.' : user ? 'Qué bueno tenerte aquí.' : mode === 'signup' ? 'Tu siguiente paso empieza aquí.' : mode === 'reset' ? 'Volvamos a abrirte el camino.' : 'Resuelve lo que sigue.'}</h1>
       <p className="auth-lead">{user ? 'Tu cuenta te sirve para encontrar ayuda y también ofrecer tus servicios.' : 'Conecta con personas de confianza de Delicias y la región, con un acceso sencillo y seguro.'}</p>
@@ -550,6 +550,11 @@ function Account({ user, notifications, preferences, onRead, onSavePreferences, 
           <h2>Descargar mis datos</h2>
           <p className="fine">Prepara un archivo JSON con tus datos y los registros de servicios en que participas, respetando los permisos de tu cuenta. El archivo se descarga en este dispositivo.</p>
           <button type="button" className="button outline" disabled={busy} onClick={() => void onExport()}>Descargar archivo de datos</button>
+        </div>
+        <div className="privacy-panel account-deletion-panel">
+          <h2>Eliminar cuenta</h2>
+          <p className="fine">Puedes revisar lo que se borrará y confirmar la eliminación de tu cuenta y datos desde una página segura.</p>
+          <a className="button outline" href="/delete-account.html">Revisar y eliminar mi cuenta</a>
         </div>
         <h2>Avisos</h2>{notifications.length ? <div className="notice-list">{notifications.map(n => <div key={n.id} className="notice"><strong>{n.title}</strong><p>{n.body}</p><small>{date(n.created_at)}</small>{!n.read_at && <button type="button" className="text-button" onClick={() => void onRead(n.id)}>Marcar leído</button>}</div>)}</div> : <p className="fine">Sin avisos todavía.</p>}
       </div> : <div className="panel auth-card">
@@ -730,15 +735,40 @@ function TicketsPage({ user, jobs, tickets, requests, addresses, ownReviews, eve
       : !user ? <button className="button primary" onClick={onSignIn}>Ingresar para consultar</button>
       : tickets.length ? <div className="ticket-list">{tickets.map(t => {
         const job = jobs.find(j => j.id === t.job_id);
-        return job && <TicketCard key={t.job_id} ticket={t} job={job} user={user}
+        return job ? <TicketCard key={t.id} ticket={t} job={job} user={user}
           request={requests.find(r => r.id === job.request_id)}
           address={addresses.find(a => a.request_id === job.request_id)}
           review={ownReviews.find(r => r.job_id === job.id)}
           events={events.filter(e => e.job_id === job.id)}
           messages={messages.filter(m => m.job_id === job.id)} appeals={appeals.filter(a => a.job_id === job.id)}
-          busy={busy} onAddress={onAddress} onStatus={onStatus} onReview={onReview} onMessage={onMessage} onAppeal={onAppeal} />;
+          busy={busy} onAddress={onAddress} onStatus={onStatus} onReview={onReview} onMessage={onMessage} onAppeal={onAppeal} />
+          : <ArchivedTicketCard key={t.id} ticket={t} />;
       })}</div> : <p className="empty">Los tickets aparecen después de aceptar una cotización.</p>}
   </section>;
+}
+
+function ArchivedTicketCard({ ticket }: { ticket: Ticket }) {
+  const a = ticket.agreement;
+  const status = ({
+    confirmed: 'Confirmado', scheduled: 'Agendado', in_progress: 'En curso',
+    completion_reported: 'Terminación reportada', completed: 'Completado',
+    cancelled: 'Cancelado', disputed: 'En disputa'
+  } as Record<string, string>)[ticket.archived_status ?? ''] ?? 'Archivado';
+  return <article className="ticket panel archived-ticket">
+    <div className="section-head"><div><p className="eyebrow">TICKET CONSERVADO</p><h2>{ticket.folio}</h2></div><span className="status">{status}</span></div>
+    <h3>{String(a.request_title ?? 'Servicio')}</h3>
+    <p>{String(a.scope ?? '')}</p>
+    <dl><div><dt>Mano de obra</dt><dd>{money(Number(a.labor_amount ?? 0))}</dd></div><div><dt>Materiales</dt><dd>{money(Number(a.materials_amount ?? 0))}</dd></div><div><dt>Traslado</dt><dd>{money(Number(a.travel_amount ?? 0))}</dd></div><div className="total"><dt>Total acordado</dt><dd>{money(Number(a.total_amount ?? 0))}</dd></div></dl>
+    <p className="fine">Materiales: {String(a.materials_note || 'Sin detalle')} · Exclusiones: {String(a.exclusions || 'Ninguna declarada')}</p>
+    <p className="fine">Emitido {date(ticket.issued_at)} · Archivado {ticket.archived_at ? date(ticket.archived_at) : 'sin fecha registrada'}</p>
+    <p className="fine">Se conserva el resumen del acuerdo por seguridad. La dirección exacta, las conversaciones y las reseñas no forman parte de este ticket. No es factura ni comprobante de pago.</p>
+    <button className="button outline no-print" type="button" onClick={event => {
+      const target = event.currentTarget.closest('.ticket');
+      document.querySelectorAll('.ticket').forEach(node => node.classList.remove('print-target'));
+      target?.classList.add('print-target');
+      window.print();
+    }}>Imprimir ticket</button>
+  </article>;
 }
 
 function TicketCard({ ticket, job, user, request, address, review, events, messages, appeals, busy, onAddress, onStatus, onReview, onMessage, onAppeal }: {

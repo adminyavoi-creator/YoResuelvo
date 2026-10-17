@@ -158,7 +158,7 @@ export async function exportMyData(userId: string, email: string | undefined) {
   const requestIds = requests.map(request => request.id);
   const opportunityIds = opportunities.map(opportunity => opportunity.id);
   const [tickets, addresses, events, messages, serviceInterests] = await Promise.all([
-    jobIds.length ? readAllRows(from => client.from('tickets').select('*').in('job_id', jobIds).order('issued_at').range(from, from + 499)) : Promise.resolve([]),
+    readAllRows(from => client.from('tickets').select('*').order('issued_at').range(from, from + 499)),
     requestIds.length ? readAllRows(from => client.from('request_addresses').select('*').in('request_id', requestIds).range(from, from + 499)) : Promise.resolve([]),
     jobIds.length ? readAllRows(from => client.from('job_events').select('*').in('job_id', jobIds).order('created_at').range(from, from + 499)) : Promise.resolve([]),
     jobIds.length ? readAllRows(from => client.from('conversation_messages').select('*').in('job_id', jobIds).order('created_at').range(from, from + 499)) : Promise.resolve([]),

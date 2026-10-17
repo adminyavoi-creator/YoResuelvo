@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es-MX">
+  <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="theme-color" content="#223745" /><meta name="description" content="Solicita y completa la eliminación de tu cuenta de YoResuelvo! y los datos asociados." /><link rel="icon" href="/brand/yoresuelvo-icon-512.png" type="image/png" /><link rel="stylesheet" href="/site.css" /><title>Eliminar cuenta y datos · YoResuelvo!</title></head>
+  <body class="site-page">
+    <a class="skip-link" href="#contenido">Saltar al contenido</a>
+    <header class="site-header"><div class="wrap header-row"><a class="brand-lockup" href="/landing.html"><img src="/brand/yoresuelvo-icon-512.png" alt="" width="48" height="48" /><span>YoResuelvo<span class="brand-mark">!</span><small>DELICIAS Y LA REGIÓN</small></span></a><a class="button button-small button-light" href="/privacy.html">Aviso de privacidad</a></div></header>
+    <main id="contenido" class="legal-shell wrap">
+      <header class="legal-head"><p class="eyebrow">TU CUENTA, TUS DATOS</p><h1>Eliminar cuenta</h1><p>Puedes completar la eliminación desde esta página, sin instalar de nuevo la app. Inicia sesión con el mismo método que usas en YoResuelvo! y confirma la solicitud.</p></header>
+      <article class="legal-card delete-card">
+        <h2>Qué se elimina y qué se conserva</h2>
+        <p>Al confirmar, se borran de los sistemas activos tu acceso, perfil, fotos, solicitudes y cotizaciones creadas por ti, direcciones privadas, conversaciones, reseñas, reportes, apelaciones, notificaciones y tokens push vinculados a tu cuenta.</p>
+        <div class="legal-callout">Los tickets de acuerdos confirmados se conservan por seguridad. Guardan el folio, el resumen del trabajo y la cotización acordada, junto con el estado del servicio al archivarse. Tu identificador se desvincula; la dirección exacta, el chat y las reseñas se eliminan. La otra parte podrá consultar el ticket archivado desde su cuenta.</div>
+        <p>El ticket se limita a aclaraciones de seguridad sobre el servicio; no es una factura ni un comprobante de pago. Se conserva mientras sea necesario para ese propósito y se retira cuando deje de serlo. Las copias técnicas de respaldo pueden conservar datos eliminados durante el plazo limitado del proveedor. Consulta los detalles en el <a href="/privacy.html">Aviso de privacidad</a>.</p>
+
+        <section class="delete-panel" aria-labelledby="delete-action-heading">
+          <h2 id="delete-action-heading">Continuar con la eliminación</h2>
+          <div id="signed-out-panel">
+            <p class="delete-subtle">Tu identidad se verifica en YoResuelvo antes de cambiar la cuenta. Usa el método con el que la creaste.</p>
+            <button class="button button-primary" id="google-signin" type="button">Continuar con Google <span aria-hidden="true">↗</span></button>
+            <div class="auth-divider"><span>o con correo y contraseña</span></div>
+            <form id="signin-form" class="form">
+              <div class="form-row"><label>Correo electrónico<input name="email" type="email" autocomplete="username" required /></label><label>Contraseña<input name="password" type="password" autocomplete="current-password" required /></label></div>
+              <button class="button button-light" type="submit">Iniciar sesión</button>
+            </form>
+            <p class="delete-subtle">¿No puedes entrar? Usa la recuperación de acceso en la app y vuelve después a esta página. Si necesitas ayuda, escribe a <a href="mailto:alonsovl.logos88@gmail.com">alonsovl.logos88@gmail.com</a>.</p>
+          </div>
+          <div id="signed-in-panel" hidden>
+            <p class="account-signed">Sesión verificada para <strong id="account-email"></strong>. Por seguridad, revisa los datos que se borrarán y confirma escribiendo <strong>ELIMINAR</strong>.</p>
+            <form id="delete-form" class="form">
+              <label>Escribe ELIMINAR para confirmar<input name="confirmation" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" required /></label>
+              <label class="inline"><input name="acknowledge" type="checkbox" required /> Entiendo que se eliminarán mis chats y reseñas, y que los tickets acordados se conservarán por seguridad.</label>
+              <button class="button button-danger" id="delete-button" type="submit">Eliminar cuenta y datos</button>
+            </form>
+            <button class="text-button" id="signout-button" type="button">Cerrar sesión sin eliminar</button>
+          </div>
+          <p class="delete-status" id="delete-status" role="status" aria-live="polite"></p>
+        </section>
+        <nav class="legal-nav" aria-label="Más información"><a href="/privacy.html">Aviso de privacidad</a><a href="/terms.html">Términos de uso</a><a href="/landing.html">Inicio</a></nav>
+      </article>
+    </main>
+    <footer class="site-footer"><div class="wrap footer-bottom"><span>© 2026 YoResuelvo!</span><span>Servicios locales. Acuerdos claros.</span></div></footer>
+    <script type="module" src="/src/delete-account.ts"></script>
+  </body>
+</html>

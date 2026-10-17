@@ -21,7 +21,11 @@ export type Job = {
   id: string; request_id: string; quote_version_id: string; client_id: string;
   provider_id: string; scheduled_at: string | null; status: string; created_at: string;
 };
-export type Ticket = { job_id: string; folio: string; agreement: Record<string, unknown>; issued_at: string };
+export type Ticket = {
+  id: string; job_id: string | null; client_id: string | null; provider_id: string | null;
+  folio: string; agreement: Record<string, unknown>; issued_at: string;
+  archived_status: string | null; archived_at: string | null;
+};
 export type PendingProvider = Pick<Provider, 'id' | 'display_name' | 'bio' | 'municipality_slug'>;
 export type Address = { request_id: string; client_id: string; address: string };
 export type Review = { provider_id: string; rating: number; body: string; created_at: string };

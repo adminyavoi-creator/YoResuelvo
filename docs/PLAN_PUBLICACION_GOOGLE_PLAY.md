@@ -8,7 +8,7 @@
 - Play Console está abierta en la cuenta de desarrollador `TheLogosDev`, de tipo personal. Los datos principales del perfil del desarrollador y sus verificaciones siguen vigentes. No se copian datos personales al repositorio.
 - La app `YoResuelvo!` ya está creada y aparece como borrador en Play Console. Idioma predeterminado: español (Latinoamérica), `es-419`; tipo: Aplicación; distribución: gratuita.
 - Paquete Android: `mx.yoresuelvo.app`. La sección Verificación de desarrolladores de Android ya muestra el paquete como **Registrado**, con tres claves asociadas. Tras crear el primer AAB firmado hay que confirmar que la clave de carga elegida coincide con la registrada.
-- En Contenido de la app siguen pendientes cinco declaraciones: política de privacidad, detalles de acceso, clasificación del contenido, público objetivo y Seguridad de los datos. La ficha predeterminada de Play Store ya tiene textos guardados como borrador, pero faltan el ícono de tienda, el gráfico de funciones y entre dos y ocho capturas reales de teléfono.
+- En Contenido de la app siguen pendientes cinco declaraciones: política de privacidad, detalles de acceso, clasificación del contenido, público objetivo y Seguridad de los datos. La ficha predeterminada de Play Store ya tiene textos guardados como borrador. El icono de 512 × 512 está preparado; faltan exportar el gráfico vectorial de funciones a PNG/JPEG y subir entre dos y ocho capturas actuales de teléfono.
 - Se guardaron las declaraciones factuales de que la app no contiene anuncios, no es gubernamental, no ofrece funciones financieras ni de salud y no usa el ID de publicidad de Android. Aún no se enviaron cambios a revisión.
 - La categoría guardada es `Vivienda y hogar`. El correo público de contacto de la ficha reutiliza el correo de desarrollador que ya aparece en el perfil público; teléfono y sitio web de soporte de esta app aún no se configuraron.
 - Capacitor comparte la app React/Vite con la PWA.
@@ -21,15 +21,15 @@
 
 ## Bloqueadores de producción que se atienden antes de solicitar revisión
 
-1. **Eliminar cuenta y datos:** hoy la app exporta datos, pero no ofrece solicitud de eliminación dentro de la app ni un enlace web público para solicitarla. Hay que diseñar eliminación con Supabase Auth, datos propios, Storage, auditoría y las retenciones legales/operativas que correspondan; publicar también el recurso web de solicitud.
+1. **Eliminar cuenta y datos:** la política acordada borra los datos asociados a la cuenta, incluidas conversaciones y reseñas; cancela solicitudes contratadas cuyo proveedor seleccionado se elimina; y conserva el ticket del servicio como snapshot de seguridad, desvinculado de la cuenta. La migración `account_deletion_cascades` y la Edge Function `delete-account` v1 ya están activas en Supabase producción. No se ejecutó ninguna baja durante el despliegue. Antes de enviar la app a revisión, falta publicar/verificar la ruta web de eliminación y completar una prueba de extremo a extremo con una cuenta controlada, comprobando la cancelación, la eliminación de datos y la conservación del ticket.
 2. **Seguridad de contenido y usuarios:** YoResuelvo publica perfiles, imágenes, reseñas y ofrece chat. Antes de revisión se deben publicar reglas de contenido, habilitar reporte de perfiles y contenido, bloqueo de usuarios, flujo de moderación y canal de soporte. El reporte actual está asociado al ticket; no basta para reportar cualquier perfil público.
-3. **Privacidad y transparencia:** publicar una política de privacidad accesible desde la app y Play Store; completar Data safety con un inventario real de Supabase Auth, base de datos, Storage, FCM y SDK incluidos. La declaración debe corresponder al comportamiento y al aviso de privacidad.
+3. **Privacidad y transparencia:** el borrador de política y términos existe localmente, identifica YoResuelvo!/TheLogosDev y usa el correo público del perfil de desarrollador; publicar las páginas y revisar la descripción de retención antes de completar Data safety. Declarar Supabase Auth, base de datos, Storage, FCM y SDK con el comportamiento real.
 4. **Artefacto y firma:** crear llave de carga, guardarla fuera del repo y configurar firma de release. Activar Play App Signing en la primera carga; no publicar credenciales ni archivos de firma en GitHub, Vercel o el bundle.
-5. **Operación de Play:** completar identidad y verificación de desarrollador, ficha de tienda, clasificación de contenido, declaraciones de la app y datos de acceso para revisión. Revisar el registro del paquete Android tras la puesta al día de verificación para desarrolladores de septiembre de 2026.
+5. **Arte de tienda y operación:** exportar el gráfico vectorial 1024 × 500 a PNG/JPEG, subir capturas reales y completar identidad, clasificación, declaraciones y acceso para revisión. Revisar el registro de paquete Android tras la puesta al día de verificación de septiembre de 2026.
 
 ### Estado actual de configuración en Play Console
 
-La creación de la app ya se completó en la cuenta. No se ha enviado el borrador de ficha, las declaraciones ni una versión a revisión. Las declaraciones sobre privacidad, acceso, clasificación, público y Seguridad de los datos deben completarse después de publicar la política y el proceso de eliminación, preparar un acceso de prueba seguro y cerrar la moderación del contenido generado por usuarios. No declarar cumplimiento general mientras sigan abiertos estos requisitos.
+La creación de la app ya se completó en la cuenta. No se ha enviado el borrador de ficha, las declaraciones ni una versión a revisión. Las declaraciones sobre privacidad, acceso, clasificación, público y Seguridad de los datos deben completarse después de publicar la política con responsable y contacto confirmados, y de tener operativo el proceso de eliminación y la moderación de UGC. No declarar cumplimiento general mientras sigan abiertos estos requisitos.
 
 ## Ruta secuencial de lanzamiento
 
@@ -58,6 +58,12 @@ npm run android:aab
 ```
 
 La última orden todavía no producirá un AAB aceptable para Google Play hasta que exista una configuración de firma release con llave de carga. Antes de ejecutarla en producción: revisar `android/app/build.gradle`, asegurar que Gradle no puede leer credenciales desde el repo, generar el bundle, validar firma y hacer carga primero en Internal testing.
+
+El 17 de octubre se intentó generar el AAB con el Java incluido en Android Studio. La sincronización Android pasó, pero Gradle no pudo descargar su distribución 8.14.3 porque este entorno no resuelve `services.gradle.org`; no se generó el bundle. Además, la firma release continúa sin configurar. Reanudar en un entorno con la distribución Gradle disponible y configurar una llave de carga protegida antes de marcar este paso como terminado.
+
+## Identidad visual de la versión
+
+La app y la PWA usan la opción 06 · Profunda: azul `#223745`, naranja `#C64F1D`, miel `#F2B441`, arcilla `#E9B99D` y marfil `#FFF7ED`. El icono 512 × 512 mantiene transparencia exterior; los recursos 192 × 192, 180 × 180, launcher adaptativo y splash Android parten del mismo arte aprobado. Revisar el recorte final en Play Console y en máscaras del launcher antes de publicar.
 
 ## Seguridad de firma y Firebase
 

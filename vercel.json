@@ -2,7 +2,7 @@
   "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/((?!assets/|demo/|logo.svg).*)", "destination": "/index.html" }],
+  "rewrites": [{ "source": "/((?!assets/|demo/|images/|brand/|firebase-config.js|pwa-register.js|logo.svg|manifest.webmanifest|sw.js|site.css|landing.html|privacy.html|terms.html|delete-account.html).*)", "destination": "/index.html" }],
   "headers": [
     {
       "source": "/(.*)",

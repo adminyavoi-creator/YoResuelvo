@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500" role="img" aria-labelledby="title desc">
+  <title id="title">YoResuelvo! — personas que resuelven</title>
+  <desc id="desc">Gráfico de marca para Google Play con el icono oficial y servicios locales.</desc>
+  <rect width="1024" height="500" fill="#FFF7ED" />
+  <path d="M0 0h456c-46 93-36 173 9 250 42 73 40 160-12 250H0z" fill="#223745" />
+  <circle cx="93" cy="68" r="130" fill="#F2B441" />
+  <circle cx="383" cy="453" r="102" fill="#E9B99D" />
+  <image href="yoresuelvo-icon-512.png" x="54" y="123" width="178" height="178" />
+  <text x="72" y="351" fill="#223745" font-family="Manrope, Arial, sans-serif" font-size="20" font-weight="800" letter-spacing="1.2">YORESUELVO!</text>
+  <text x="72" y="384" fill="#586773" font-family="DM Sans, Arial, sans-serif" font-size="15" font-weight="700" letter-spacing="2">DELICIAS Y LA REGIÓN</text>
+  <text x="505" y="131" fill="#223745" font-family="Manrope, Arial, sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5">Una tarea pendiente.</text>
+  <text x="505" y="184" fill="#C64F1D" font-family="Manrope, Arial, sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5">Alguien cerca.</text>
+  <text x="508" y="235" fill="#586773" font-family="DM Sans, Arial, sans-serif" font-size="19" font-weight="500">Perfiles locales. Cotizaciones claras.</text>
+  <text x="508" y="266" fill="#586773" font-family="DM Sans, Arial, sans-serif" font-size="19" font-weight="500">Un acuerdo a la vez.</text>
+  <g transform="translate(508 316)">
+    <rect width="137" height="46" rx="18" fill="#FFF0C2" />
+    <text x="68.5" y="29" fill="#223745" text-anchor="middle" font-family="DM Sans, Arial, sans-serif" font-size="14" font-weight="700">Plomería</text>
+    <rect x="149" width="161" height="46" rx="18" fill="#FFF0C2" />
+    <text x="229.5" y="29" fill="#223745" text-anchor="middle" font-family="DM Sans, Arial, sans-serif" font-size="14" font-weight="700">Electricidad</text>
+    <rect x="322" width="148" height="46" rx="18" fill="#FFF0C2" />
+    <text x="396" y="29" fill="#223745" text-anchor="middle" font-family="DM Sans, Arial, sans-serif" font-size="14" font-weight="700">Hogar</text>
+  </g>
+  <path d="M507 405h456" stroke="#E7D8CB" stroke-width="2" />
+  <text x="508" y="442" fill="#586773" font-family="DM Sans, Arial, sans-serif" font-size="15" font-weight="600">Encuentra a quien sabe hacerlo. Decide con claridad.</text>
+</svg>
