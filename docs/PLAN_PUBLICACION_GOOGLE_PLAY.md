@@ -14,7 +14,7 @@
 - Existe `npm run android:aab`, que ejecuta `bundleRelease`, pero el proyecto no tiene configurado `signingConfig` de release.
 - `android/app/google-services.json` está presente localmente para Firebase `yoresuelvo-2822f`; no se ha hecho una compilación release que valide Google Services ni una entrega FCM en dispositivo.
 - `versionCode = 1`, `versionName = 1.0`.
-- La identidad de la cuenta Play Console, el estado de verificación y la creación de la ficha de la app no están confirmados en este plan.
+- La fecha de creación de la cuenta aún no se confirmó; verificarla para determinar si aplica el requisito de 12 testers/14 días antes de solicitar producción.
 - La consola y las herramientas de desarrollo no reemplazan una prueba instalada en un Android real.
 
 ## Bloqueadores de producción que se atienden antes de solicitar revisión
