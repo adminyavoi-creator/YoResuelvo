@@ -1,4 +1,4 @@
-# Plan integral de desarrollo — YoResuelvo! · revisión 04
+# Plan integral de desarrollo — YoResuelvo! · revisión 05
 ## 1. Objetivo
 Conectar hogares y negocios de Delicias con prestadores de servicios para descubrir, comparar, solicitar cotizaciones y formalizar acuerdos mediante tickets. La plataforma no cobra al cliente, no retiene dinero y no opera billeteras. El pago se acuerda y realiza directamente entre las partes.
 
@@ -26,6 +26,47 @@ La dirección exacta se revela solo al prestador contratado. No publicar teléfo
 - Reseñas de 1–5 estrellas, texto y respuesta del técnico; una por servicio completado, sin autorreseñas. Reportes y moderación trazables.
 - Panel cliente y técnico; administración de catálogo, reportes, bloqueos y métricas.
 - Avisos dentro de la app; push PWA/Android tiene integración y credenciales/configuración parcialmente aplicadas. La prueba de entrega Android, el AAB release firmado y la configuración de Play Console siguen pendientes. Correo transaccional sigue pendiente.
+
+### 5.1 Herramientas para clientes
+
+| Herramienta | Qué permite | Estado y condición de calidad |
+|---|---|---|
+| Acceso y perfil de cuenta | Entrar con Google o correo, recuperar acceso, conservar la sesión y elegir si se entra a buscar u ofrecer | Flujos de aplicación preparados; OAuth de Google y recuperación deben probarse con cuentas reales y los dominios finales. |
+| Buscador regional | Buscar por tarea, nombre/oficio, municipio y categoría; recorrer tarjetas de especialistas con fotos | Búsqueda de texto, municipio y oficio disponible. La distancia por GPS y el mapa quedan para otra versión y requieren permiso explícito. |
+| Comparar especialistas | Seleccionar hasta tres perfiles y revisar oficio, zona, experiencia, disponibilidad declarada, fotos y reseñas | Perfiles, galería de hasta cinco fotos y reseñas vinculadas a trabajos existen en código. No mostrar insignias, estrellas ni disponibilidad no verificadas. |
+| Solicitar cotizaciones | Describir trabajo y horario preferido, e invitar hasta cinco especialistas aprobados | Implementado; faltan pruebas E2E y adjuntos seguros para fotos del problema. No pedir domicilio exacto en la descripción. |
+| Revisar y aceptar propuestas | Comparar alcance, mano de obra, materiales, traslado, exclusiones, horario y vigencia; aceptar una versión | Cotizaciones versionadas y aceptación única implementadas. Cada cambio requiere una versión nueva y consentimiento. |
+| Servicio y ticket | Consultar folio, acuerdo, agenda, estados e historial; guardar dirección privada y generar copia imprimible | Implementado en código y respaldado por reglas del servidor; validar con cliente y especialista reales. El ticket no es factura ni comprobante de pago. |
+| Chat del servicio | Intercambiar mensajes privados cuando existe un servicio confirmado | Mensajes persistentes en código. Actualización en tiempo real, adjuntos y confirmaciones de lectura no se consideran terminados hasta implementarse y probarse. |
+| Avisos y preferencias | Ver avisos internos, marcar como leídos y habilitar push en PWA/Android | Avisos internos y canal FCM preparados. Entrega en dispositivo, controles completos de preferencias y enlace al servicio deben validarse. |
+| Reseña, reporte y ayuda | Reseñar un trabajo terminado, comunicar un problema, consultar resolución y apelar | Reseñas, incidencias ligadas a un trabajo y apelación están implementadas. Reportar/bloquear cualquier perfil o contenido desde el catálogo sigue pendiente. |
+| Privacidad de cuenta | Exportar datos propios, ajustar avisos y solicitar eliminación | Exportación y baja están en código; la baja borra reseñas y conversaciones, cancela solicitudes contratadas donde la persona eliminada es el prestador seleccionado y conserva el ticket como snapshot desvinculado. Verificar con una cuenta de prueba. |
+
+### 5.2 Herramientas para especialistas
+
+- **Alta de perfil:** nombre público, descripción, años de experiencia, especialidades, oficios, municipio de cobertura y disponibilidad para recibir solicitudes.
+- **Portafolio:** subir hasta cinco imágenes JPG, PNG o WebP de máximo 4 MB. Antes de abrir el piloto debe haber consentimiento claro, reglas para fotos de terceros y un flujo para reportar o retirar contenido.
+- **Bandeja de solicitudes:** ver invitaciones pertinentes por oficio y municipio, abrir el alcance solicitado y responder sin exponer teléfono ni domicilio antes de contratar.
+- **Constructor de cotización:** detallar trabajo incluido, materiales y exclusiones, desglosar mano de obra/materiales/traslado, proponer fecha y fijar vigencia.
+- **Panel de actividad:** revisar solicitudes, cotizaciones enviadas, servicios agendados, tickets, historial y chat de cada trabajo.
+- **Cierre del trabajo:** reportar terminación; el cliente confirma el cierre. Solo después se habilita la reseña verificada.
+- **Siguiente versión:** agenda por bloques horarios, radio de cobertura, respuestas rápidas y datos de tiempo de respuesta. Publicarlos solo después de tener datos suficientes y una metodología visible.
+
+### 5.3 Herramientas de confianza y operación
+
+| Herramienta | Responsable | Requisito |
+|---|---|---|
+| Revisión de perfiles | Operación autorizada | Aprobar, rechazar o suspender con motivo; el alta de especialista nunca concede permiso administrativo. |
+| Cola de reportes y reseñas | Moderación | Resolver con motivo auditable y habilitar apelación. Los reportes generales de perfiles/contenido y el bloqueo entre usuarios deben completarse antes de una publicación amplia. |
+| Panel de operación | Operador autorizado | Ver perfiles pendientes, incidencias, apelaciones y métricas agregadas; ocultar datos personales que no se necesitan para resolver. |
+| Soporte | Responsable del piloto | Definir canal, horario de atención, tiempos de respuesta, guías de cancelación y proceso ante incidentes antes de incorporar clientes reales. |
+| Indicadores | Producto y operación | Medir activación, primera cotización, aceptación, cierre, reportes y oferta por municipio/oficio; nunca presentarlos como resultados hasta contar con muestra real. |
+
+### 5.4 Herramientas que no se deben simular
+
+La cercanía exacta, tiempo promedio de respuesta, precios por oficio, insignias de validación y volumen de reseñas se mostrarán únicamente cuando exista una definición, consentimiento y una muestra suficiente. Favoritos, mapa, adjuntos en solicitudes, correo transaccional, confirmaciones de lectura y bloqueo de personas forman parte del backlog; no son condiciones para aparentar que la plataforma ya los ofrece.
+
+La secuencia técnica agrupa los incrementos de las fases 6–13 descritas abajo en entregas operativas en `PLAN_IMPLEMENTACION.md`; las dos tablas usan niveles distintos de desglose y comparten las mismas puertas de salida.
 
 ## 6. Estados y excepciones
 Solicitud: borrador, abierta, contratada, cancelada, vencida. Cotización: enviada, sustituida, aceptada, rechazada, vencida. Servicio: confirmado, agendado, en_progreso, terminacion_reportada, completado, cancelado, en_disputa. Solo el cliente confirma completado; el administrador resuelve disputas con motivo auditado. Cancelación posterior al inicio debe pasar por incidencia. La plataforma documenta desacuerdos; no procesa reembolsos ni arbitra movimientos financieros.
@@ -96,3 +137,11 @@ El plan de publicación está en [`PLAN_PUBLICACION_GOOGLE_PLAY.md`](PLAN_PUBLIC
 Antes de subir un bundle, el plan incorpora dos bloqueadores de producto: solicitud de eliminación de cuenta dentro de la app y mediante enlace web; y controles para reportar contenido/usuarios y bloquear personas, además de moderación para los perfiles, fotos, reseñas y chat que YoResuelvo permite publicar. También exige Data safety, política de privacidad, términos, acceso para revisión, clasificación de contenido, pruebas internas/cerradas y monitoreo gradual de producción.
 
 La ruta replica el aprendizaje incremental de Oficia —fundación, flujo completo, confianza, pruebas, lanzamiento gradual y operación— manteniendo identidad, Supabase, Firebase y paquete Android propios. Si la cuenta es personal y se creó después del 13 de noviembre de 2023, Play exige al menos 12 testers optados-in de forma continua durante 14 días antes de solicitar producción; primero se debe confirmar el tipo y antigüedad de la cuenta.
+
+## 17. Actualización ejecutiva · octubre 2026
+
+La base de producto y los planes anteriores siguen vigentes con el estado verificable de `ESTADO_FASES.md`. La prioridad inmediata es completar una prueba cerrada con cuentas reales de cliente, prestador aprobado y Operaciones. La interfaz móvil ya distingue Inicio, Explorar, Solicitudes, Chat y Perfil. Los doce oficios del catálogo inicial tienen pictograma propio; la selección lleva a un filtro de Explorar.
+
+**Ruta de salida por hitos:** (1) sincronizar y revisar el código de esta iteración, (2) asignar operador mediante proceso administrativo, (3) aprobar voluntarios reales con consentimiento de imágenes y zona de atención, (4) completar dos servicios controlados de solicitud a reseña y soporte, (5) probar dispositivo Android/PWA, OAuth, push y eliminación, (6) terminar recursos de Play Console y AAB firmado, (7) prueba interna/cerrada y publicación gradual. Cada hito exige evidencia de permisos, estados y errores; una compilación no sustituye una operación real.
+
+**Dependencias de producto:** promociones requieren campañas aprobadas con vigencia; el ranking de “más solicitados” requiere conteos reales y umbral de muestra; mapa con marcadores requiere ubicación pública aproximada y autorización; la atención humana requiere un operador asignado; capturas de Play deben representar pantallas reales del producto. No publicar valores simulados como evidencia de desempeño.
