@@ -6,16 +6,16 @@ import {
   db, configured, catalog, workspace, saveProvider, createRequest, submitQuote,
   acceptQuote, pendingProviders, reviewProvider, saveAddress, setJobStatus,
   createReview, markNotificationRead, pendingReports, reviewQueue, moderateReview, sendJobMessage,
-  saveNotificationPreferences, exportMyData, fileReportAppeal, pendingAppeals, reviewReportAppeal, operationalMetrics, uploadProviderPhoto, providerPhotoUrl
+  saveNotificationPreferences, exportMyData, fileReportAppeal, pendingAppeals, reviewReportAppeal, operationalMetrics, uploadProviderPhoto, providerPhotoUrl, supportInbox, sendSupportMessage
 } from './lib/api';
 import { demoCategories, demoMunicipalities, demoProviders } from './lib/demo';
 import type {
   Category, Municipality, Provider, ServiceRequest, Quote, Job, Ticket, PendingProvider,
   Address, Review, OwnReview, ModerationReview, Notification, Report, JobEvent, JobMessage,
-  NotificationPreferences, Appeal, PendingAppeal, OperationalMetrics
+  NotificationPreferences, Appeal, PendingAppeal, OperationalMetrics, SupportMessage, SupportThread
 } from './lib/types';
 
-type Page = 'explorar' | 'solicitudes' | 'ofrecer' | 'tickets' | 'moderacion' | 'cuenta';
+type Page = 'inicio' | 'explorar' | 'solicitudes' | 'chat' | 'ofrecer' | 'tickets' | 'moderacion' | 'cuenta';
 const money = (n: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n);
 const date = (v: string | null) => v
   ? new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Chihuahua' }).format(new Date(v))
@@ -26,12 +26,13 @@ const providerImage = (p: Provider) => p.photo_paths?.[0] ? providerPhotoUrl(p.p
 const errText = (error: unknown) => error instanceof Error ? error.message : 'No se pudo completar la operación.';
 const requestedPushPage = (): Page | null => {
   const screen = new URLSearchParams(window.location.search).get('screen');
-  const allowed: Page[] = ['explorar','solicitudes','ofrecer','tickets','cuenta'];
+  const allowed: Page[] = ['inicio','explorar','solicitudes','chat','ofrecer','tickets','cuenta'];
   return allowed.includes(screen as Page) ? screen as Page : null;
 };
 
 export default function App() {
-  const [page, setPage] = useState<Page>(() => requestedPushPage() ?? (configured ? 'cuenta' : 'explorar'));
+  const [page, setPage] = useState<Page>(() => requestedPushPage() ?? 'inicio');
+  const [exploreView, setExploreView] = useState<'lista' | 'mapa'>('lista');
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -55,6 +56,9 @@ export default function App() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [events, setEvents] = useState<JobEvent[]>([]);
   const [messages, setMessages] = useState<JobMessage[]>([]);
+  const [supportThreads, setSupportThreads] = useState<SupportThread[]>([]);
+  const [supportMessages, setSupportMessages] = useState<SupportMessage[]>([]);
+  const [selectedSupportThread, setSelectedSupportThread] = useState('');
   const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
   const [appeals, setAppeals] = useState<Appeal[]>([]);
   const [appealsQueue, setAppealsQueue] = useState<PendingAppeal[]>([]);
@@ -89,6 +93,8 @@ export default function App() {
       setStaffRole(w.staffRole);
       setAddresses(w.addresses); setOwnReviews(w.ownReviews);
       setNotifications(w.notifications); setEvents(w.events); setMessages(w.messages);
+      const support = await supportInbox(currentUser.id, Boolean(w.staffRole));
+      setSupportThreads(support.threads); setSupportMessages(support.messages);
       setPreferences(w.preferences); setAppeals(w.appeals);
       if (w.staffRole) {
         const [p, r, reviewItems, appealItems, operational] = await Promise.all([
@@ -103,6 +109,7 @@ export default function App() {
       setRequests([]); setQuotes([]); setJobs([]); setTickets([]);
       setOwnProvider(null); setStaffRole(null); setPending([]); setReports([]); setModerationReviews([]);
       setAddresses([]); setOwnReviews([]); setNotifications([]); setEvents([]); setMessages([]);
+      setSupportThreads([]); setSupportMessages([]); setSelectedSupportThread('');
       setPreferences(null); setAppeals([]); setAppealsQueue([]); setMetrics(null);
     }
   }
@@ -120,7 +127,7 @@ export default function App() {
         const currentUser = db ? (await db.auth.getUser()).data.user : null;
         if (!active) return;
         setUser(currentUser);
-        setPage(requestedPushPage() ?? (currentUser ? (savedAuthIntent() === 'prestador' ? 'ofrecer' : 'explorar') : (configured ? 'cuenta' : 'explorar')));
+        setPage(requestedPushPage() ?? (currentUser && savedAuthIntent() === 'prestador' ? 'ofrecer' : 'inicio'));
         await refresh(currentUser);
       } catch (e) { if (active) setError(errText(e)); }
       finally { if (active) setReady(true); }
@@ -129,8 +136,8 @@ export default function App() {
     const subscription = db?.auth.onAuthStateChange((event, session) => {
       if (active) {
         setUser(session?.user ?? null);
-        if (event === 'SIGNED_IN') setPage(savedAuthIntent() === 'prestador' ? 'ofrecer' : 'explorar');
-        if (event === 'SIGNED_OUT') setPage('explorar');
+        if (event === 'SIGNED_IN') setPage(savedAuthIntent() === 'prestador' ? 'ofrecer' : 'inicio');
+        if (event === 'SIGNED_OUT') setPage('inicio');
         if (event === 'PASSWORD_RECOVERY') { setRecovery(true); setPage('cuenta'); }
       }
     }).data.subscription;
@@ -145,6 +152,13 @@ export default function App() {
     void refresh(user).catch(e => setError(errText(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+  useEffect(() => {
+    if (page !== 'chat' || !user || !configured) return;
+    const update = () => { if (document.visibilityState === 'visible') void supportInbox(user.id, Boolean(staffRole)).then(data => { setSupportThreads(data.threads); setSupportMessages(data.messages); }).catch(() => {}); };
+    window.addEventListener('focus', update);
+    const timer = window.setInterval(update, 20000);
+    return () => { window.removeEventListener('focus', update); window.clearInterval(timer); };
+  }, [page, user?.id, staffRole]);
 
   async function authAction(task: () => Promise<unknown>, success: string, next?: Page): Promise<boolean> {
     setBusy(true); setMessage(''); setError('');
@@ -179,6 +193,10 @@ export default function App() {
       && (!q || (p.display_name + ' ' + p.bio + ' ' + p.categories.map(c => label(categories, c)).join(' '))
         .toLocaleLowerCase('es').includes(q));
   }), [providers, city, category, search, categories]);
+  const rated = useMemo(() => [...providers].sort((a, b) => {
+    const score = (p: Provider) => { const items = reviews.filter(r => r.provider_id === p.id); return items.length ? items.reduce((sum, r) => sum + r.rating, 0) / items.length : 0; };
+    return score(b) - score(a);
+  }), [providers, reviews]);
   function startRequest(selected: Provider[]) {
     if (!configured) { window.location.href = '/demo/#catalogo'; return; }
     if (!user) { setAuthIntent('cliente'); navigate('cuenta'); return; }
@@ -193,7 +211,7 @@ export default function App() {
 
   return <div className="app-shell">
     <header className="header wrap">
-      <button type="button" className="brand" onClick={() => navigate('explorar')} aria-label="YoResuelvo!, inicio">
+      <button type="button" className="brand" onClick={() => navigate('inicio')} aria-label="YoResuelvo!, inicio">
         <img src="/brand/yoresuelvo-icon-512.png" alt="" /><span>YoResuelvo<span className="brand-mark">!</span><small>DELICIAS Y LA REGIÓN</small></span>
       </button>
       <nav aria-label="Navegación principal">
@@ -212,6 +230,20 @@ export default function App() {
       {!ready && <p role="status">Cargando…</p>}
       {error && <p className="alert error" role="alert">{error}</p>}
       {message && <p className="alert success" role="status">{message}</p>}
+      {page === 'inicio' && <section className="section home-page">
+        <p className="eyebrow">DELICIAS Y LA REGIÓN</p><h1>¿Qué necesitas resolver hoy?</h1>
+        <button type="button" className="home-search" onClick={() => navigate('explorar')}>⌕ &nbsp; Busca un servicio o especialista <span>→</span></button>
+        <div className="browse-heading"><h2>Servicios populares</h2><button type="button" onClick={() => navigate('explorar')}>Ver todos →</button></div>
+        <div className="category-grid">{categories.map(item => <button key={item.slug} type="button" className="category-tile" onClick={() => { setCategory(item.slug); navigate('explorar'); }}><span className="category-icon"><CategoryIcon slug={item.slug} /></span>{item.name}</button>)}</div>
+        <div className="featured-strip" aria-label="Consejos y promociones"><div className="featured-track">{[
+          { image: '/images/electricidad.jpg', title: 'Describe tu tarea con detalle', detail: 'Recibe cotizaciones más claras', slug: 'electricidad' },
+          { image: '/images/plomeria.jpg', title: 'Compara el alcance completo', detail: 'Revisa materiales y traslado', slug: 'plomeria' },
+          { image: '/images/reparaciones.jpg', title: 'Califica al terminar', detail: 'Ayuda a tu comunidad', slug: '' }
+        ].map(slide => <button key={slide.title} type="button" className="featured-slide" onClick={() => { setCategory(slide.slug); navigate('explorar'); }}><img src={slide.image} alt="" /><span className="featured-overlay"><small>CONSEJO YORESUELVO!</small><strong>{slide.title}</strong><span>{slide.detail} ↗</span></span></button>)}</div></div>
+        <div className="browse-heading"><h2>Mejor calificados</h2><button type="button" onClick={() => navigate('explorar')}>Explorar →</button></div>
+        {rated.length ? <div className="home-providers">{rated.slice(0, 4).map(p => { const items = reviews.filter(r => r.provider_id === p.id); return <button key={p.id} type="button" className="home-provider panel" onClick={() => setProfilePreview(p)}><img src={providerImage(p)} alt="" /><span><strong>{p.display_name}</strong><small>{label(categories, p.categories[0] ?? '')} · {label(municipalities, p.municipality_slug)}</small><small>{items.length ? `★ ${(items.reduce((sum, r) => sum + r.rating, 0) / items.length).toFixed(1)} · ${items.length} reseñas` : '☆ Sin reseñas todavía'}</small></span><b>→</b></button>; })}</div> : <p className="empty">Pronto encontrarás especialistas aprobados aquí.</p>}
+        <p className="fine">Las promociones aparecerán cuando estén vigentes y verificadas.</p>
+      </section>}
       {page === 'explorar' && <>
         <section className="discovery" id="catalogo">
           <div className="discovery-intro"><div><span className="location-kicker">⌖ {city ? label(municipalities, city) : 'Delicias y la región'}</span><h1>¿Qué necesitas <em>resolver hoy?</em></h1></div><button type="button" className="intro-avatar" onClick={() => navigate('cuenta')} aria-label="Abrir mi perfil">{user?.user_metadata?.avatar_url ? <img src={user.user_metadata.avatar_url as string} alt="" /> : '☺'}</button></div>
@@ -227,13 +259,16 @@ export default function App() {
           </div></div>}
           <div className="browse-heading"><h2>Explora servicios</h2><button type="button" onClick={() => { setCategory(''); setSearch(''); }}>Ver todos →</button></div>
           <div className="category-shortcuts" aria-label="Explorar por categoría">
-            <div className="category-grid">{categories.slice(0, 8).map(item => <button key={item.slug} type="button"
+            <div className="category-grid">{categories.map(item => <button key={item.slug} type="button"
               className={`category-tile${category === item.slug ? ' active' : ''}`} aria-pressed={category === item.slug}
               onClick={() => { setCategory(current => current === item.slug ? '' : item.slug); setCompared([]); }}>
               <span className="category-icon" aria-hidden="true"><CategoryIcon slug={item.slug} /></span><span>{item.name}</span>
             </button>)}</div>
           </div>
           <div className="browse-heading pros-heading"><div><h2>Personas que resuelven</h2><small>{filtered.length} {filtered.length === 1 ? 'perfil' : 'perfiles'} en tu búsqueda</small></div><button type="button" onClick={() => navigate('ofrecer')}>Ofrecer servicios ↗</button></div>
+          <div className="view-switch" role="group" aria-label="Vista de especialistas"><button type="button" aria-pressed={exploreView === 'lista'} onClick={() => setExploreView('lista')}>☷ Lista</button><button type="button" aria-pressed={exploreView === 'mapa'} onClick={() => setExploreView('mapa')}>⌖ Mapa OSM</button></div>
+          {exploreView === 'mapa' && <div className="map-panel"><iframe title="Mapa de OpenStreetMap de Delicias y la región" loading="lazy" src="https://www.openstreetmap.org/export/embed.html?bbox=-106.12%2C27.80%2C-105.20%2C28.75&layer=mapnik" /><p>Zona de cobertura aproximada por municipio; no representa el domicilio ni la ubicación en tiempo real del especialista. Selecciona una ficha para ver su perfil.</p><div className="map-providers">{filtered.map(p => { const items = reviews.filter(r => r.provider_id === p.id); return <button type="button" key={p.id} onClick={() => setProfilePreview(p)}><span className="category-icon"><CategoryIcon slug={p.categories[0] ?? ''} /></span><span><strong>{label(categories, p.categories[0] ?? '')} · {p.display_name}</strong><small>{label(municipalities, p.municipality_slug)} · {items.length ? `★ ${(items.reduce((sum, r) => sum + r.rating, 0) / items.length).toFixed(1)}` : '☆ Sin reseñas'}</small></span></button>; })}</div></div>}
+          {exploreView === 'lista' && <>
           {filtered.length ? <div className="cards provider-cards">{filtered.map(p => { const ratings = reviews.filter(r => r.provider_id === p.id); return <article className="card provider-card" key={p.id}>
             <button type="button" className="provider-photo" onClick={() => setProfilePreview(p)} aria-label={`Conocer a ${p.display_name}`}><img src={providerImage(p)} alt={p.photo_paths?.length ? `Trabajo de ${p.display_name}` : ''} loading="lazy" />{!p.photo_paths?.length && <span>Foto ilustrativa del servicio</span>}</button>
             <div className="provider-info"><div className="provider-top"><span className="service-pill">{label(categories, p.categories[0] ?? '')}</span><span className={`availability-dot${p.available ? '' : ' paused'}`}>{p.available ? '● Disponible' : '● Pausado'}</span></div>
@@ -245,6 +280,7 @@ export default function App() {
               {compared.includes(p.id) ? '✓ Elegido' : '＋ Comparar'}
             </button><button type="button" className="button primary" onClick={() => setProfilePreview(p)}>Ver perfil →</button></div></div>
           </article>; })}</div> : <div className="empty"><h3>Sin perfiles para estos filtros</h3><p>Prueba otro municipio o servicio.</p><button className="button outline" type="button" onClick={() => { setSearch(''); setCity(''); setCategory(''); }}>Limpiar filtros</button></div>}
+          </>}
           {compared.length > 0 && <section className="compare" aria-label="Comparación de prestadores"><div className="section-head"><h3>Compara hasta tres</h3><button className="text-button" onClick={() => setCompared([])}>Limpiar</button></div><div className="compare-grid">{compared.map(id => {
             const p = providers.find(item => item.id === id);
             return p && <div key={id}><strong>{p.display_name}</strong><span>{label(municipalities, p.municipality_slug)}</span><span>{p.categories.map(c => label(categories, c)).join(', ')}</span><p>{p.bio}</p></div>;
@@ -262,7 +298,7 @@ export default function App() {
         onChooseMode={intent => { setAuthIntent(intent); saveAuthIntent(intent); navigate(intent === 'prestador' ? 'ofrecer' : 'explorar'); }}
         onPushOpen={data => {
           const screen = data.screen;
-          const allowed: Page[] = ['explorar','solicitudes','ofrecer','tickets','cuenta'];
+          const allowed: Page[] = ['inicio','explorar','solicitudes','chat','ofrecer','tickets','cuenta'];
           navigate(allowed.includes(screen as Page) ? screen as Page : 'cuenta');
         }}
         onPushForeground={item => setMessage(`${item.title}: ${item.body}`)}
@@ -286,6 +322,13 @@ export default function App() {
         onExplore={() => navigate('explorar')}
         onQuote={input => action(() => submitQuote(input), 'Cotización enviada; el cliente ya puede revisarla.', 'solicitudes')}
         onAccept={id => action(() => acceptQuote(id), 'Cotización aceptada. El ticket quedó disponible.', 'tickets')} />}
+      {page === 'chat' && <section className="section"><p className="eyebrow">MENSAJES</p><h1>Conversaciones</h1>
+        <div className="operations-chat"><strong>✦ Operaciones YoResuelvo!</strong><p>Consultas y seguimiento dentro de la app.</p><span>Tu mensaje quedará guardado. La respuesta depende de la disponibilidad del equipo; para una urgencia, usa los medios de contacto publicados en los términos.</span>
+          {user && !staffRole && <SupportConversation userId={user.id} messages={supportMessages.filter(m => m.user_id === user.id)} busy={busy} onSend={body => authAction(() => sendSupportMessage(user.id, body), 'Mensaje enviado a Operaciones.', 'chat')} />}
+          {user && Boolean(staffRole) && <div className="support-queue"><strong>Consultas recibidas</strong>{supportThreads.length ? supportThreads.map(thread => <button type="button" key={thread.user_id} onClick={() => setSelectedSupportThread(thread.user_id)}>{thread.user_id.slice(0, 8)} · {date(thread.updated_at)}</button>) : <p>Sin consultas todavía.</p>}{selectedSupportThread && <SupportConversation userId={selectedSupportThread} messages={supportMessages.filter(m => m.user_id === selectedSupportThread)} busy={busy} onSend={body => authAction(() => sendSupportMessage(selectedSupportThread, body), 'Respuesta guardada.', 'chat')} />}</div>}
+        </div>
+        {!user ? <button type="button" className="button primary" onClick={() => navigate('cuenta')}>Ingresar para ver conversaciones</button> : jobs.length ? <div className="chat-index">{jobs.map(job => { const request = requests.find(r => r.id === job.request_id); const thread = messages.filter(m => m.job_id === job.id); return <button type="button" className="panel chat-index-item" key={job.id} onClick={() => { navigate('tickets'); window.setTimeout(() => document.getElementById(`job-${job.id}`)?.scrollIntoView({ behavior: 'smooth' }), 80); }}><span><strong>{request?.title ?? 'Servicio contratado'}</strong><small>{job.client_id === user.id ? 'Especialista' : 'Cliente'} · {thread.length} {thread.length === 1 ? 'mensaje' : 'mensajes'}</small><small>{thread.at(-1)?.body ?? 'Abre el ticket para comenzar la conversación.'}</small></span><b>→</b></button>; })}</div> : <p className="empty">Las conversaciones privadas aparecen después de contratar un servicio.</p>}
+      </section>}
       {page === 'tickets' && <TicketsPage user={user} jobs={jobs} tickets={tickets} requests={requests} addresses={addresses} ownReviews={ownReviews} events={events} messages={messages} appeals={appeals} busy={busy}
         configured={configured} onSignIn={() => navigate('cuenta')}
         onAddress={(requestId, address, exists) => action(() => saveAddress(requestId, user!.id, address, exists), 'Dirección guardada para las partes del servicio.', 'tickets')}
@@ -316,16 +359,16 @@ export default function App() {
         onRequest={() => { const selected = profilePreview; setProfilePreview(null); startRequest([selected]); }} />}
     </main>
     <nav className="mobile-tabbar" aria-label="Navegación rápida">
-      <button type="button" aria-current={page === 'explorar' ? 'page' : undefined} onClick={() => { navigate('explorar'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+      <button type="button" aria-current={page === 'inicio' ? 'page' : undefined} onClick={() => navigate('inicio')}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" /></svg><span>Inicio</span>
       </button>
-      <button type="button" onClick={() => { if (page !== 'explorar') navigate('explorar'); window.setTimeout(() => document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth' }), 0); }}>
+      <button type="button" aria-current={page === 'explorar' ? 'page' : undefined} onClick={() => navigate('explorar')}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></svg><span>Explorar</span>
       </button>
       <button type="button" aria-current={page === 'solicitudes' ? 'page' : undefined} onClick={() => navigate('solicitudes')}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12a2 2 0 0 1 2 2v16l-4-2-4 2-4-2-4 2V5a2 2 0 0 1 2-2Z" /><path d="M8 9h8m-8 4h6" /></svg><span>Solicitudes</span>
       </button>
-      <button type="button" aria-current={page === 'tickets' ? 'page' : undefined} onClick={() => navigate('tickets')}>
+      <button type="button" aria-current={page === 'chat' ? 'page' : undefined} onClick={() => navigate('chat')}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v13H8l-5 4V5Z" /><path d="M7 10h10m-10 4h7" /></svg><span>Chat</span>
       </button>
       <button type="button" aria-current={page === 'cuenta' ? 'page' : undefined} onClick={() => navigate('cuenta')}>
@@ -333,6 +376,14 @@ export default function App() {
       </button>
     </nav>
     <footer className="wrap app-footer"><span>YoResuelvo! · Delicias y la región</span><small>Los tickets registran acuerdos de servicio; no son facturas ni comprobantes de pago.</small><nav className="policy-links" aria-label="Privacidad y ayuda"><a href="/privacy.html">Aviso de privacidad</a><a href="/terms.html">Términos de uso</a><a href="/delete-account.html">Eliminar cuenta</a></nav></footer>
+  </div>;
+}
+
+function SupportConversation({ userId, messages, busy, onSend }: { userId: string; messages: SupportMessage[]; busy: boolean; onSend: (body: string) => Promise<boolean> }) {
+  const [draft, setDraft] = useState('');
+  return <div className="support-conversation" aria-label="Conversación con Operaciones">
+    <div className="support-history" role="log" aria-live="polite">{messages.length ? messages.map(item => <div className={`support-bubble${item.sender_id === userId ? ' customer' : ' operator'}`} key={item.id}><p>{item.body}</p><small>{item.sender_id === userId ? 'Cliente' : 'Operaciones'} · {date(item.created_at)}</small></div>) : <p>Aún no hay mensajes en esta conversación.</p>}</div>
+    <form onSubmit={event => { event.preventDefault(); if (!draft.trim()) return; void onSend(draft).then(sent => { if (sent) setDraft(''); }); }}><label className="sr-only" htmlFor={`support-${userId}`}>Escribir mensaje</label><input id={`support-${userId}`} value={draft} maxLength={1500} onChange={event => setDraft(event.target.value)} placeholder="Escribe a Operaciones" /><button type="submit" disabled={busy || !draft.trim()}>Enviar</button></form>
   </div>;
 }
 
@@ -344,6 +395,13 @@ function CategoryIcon({ slug }: { slug: string }) {
         : type.includes('cerraj') ? <><circle cx="8" cy="8" r="4" /><path d="m11 11 9 9m-5-5 2-2m0 5 2-2" /></>
           : type.includes('limp') ? <><path d="m5 20 5-12m4 1 5 11M9 8l7 1m-9 6h12m-10 5h8" /></>
             : type.includes('mand') ? <><path d="M4 8h16l-1 13H5L4 8Z" /><path d="M9 8V6a3 3 0 0 1 6 0v2" /></>
+            : type.includes('refriger') ? <><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 11h16M8 7h1M8 15h1M16 15h1"/></>
+            : type.includes('alban') ? <><path d="M3 7h18v13H3zM3 13h18M9 7v6m6 0v7M4 4h16"/></>
+            : type.includes('pint') ? <><path d="M3 4h14v7H3zM17 7h3v6h-8v3m0 0v5m-2-5h4"/></>
+            : type.includes('carpint') ? <><path d="M4 18 17 5l3 3L7 21H4v-3ZM12 5l3-3 7 7-3 3"/></>
+            : type.includes('jardin') ? <><path d="M12 21V10m0 6c-6 0-9-3-9-9 6 0 9 3 9 9Zm0-3c0-6 3-9 9-9 0 6-3 9-9 9Z"/></>
+            : type.includes('mecan') ? <><circle cx="12" cy="12" r="3"/><path d="M10 2h4l1 3 2 1 3-1 2 4-2 2v2l2 2-2 4-3-1-2 1-1 3h-4l-1-3-2-1-3 1-2-4 2-2v-2L2 9l2-4 3 1 2-1 1-3Z"/></>
+            : type.includes('soporte') ? <><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4M7 9l2 2-2 2m4 0h5"/></>
               : <><path d="m14.5 6.5 3-3a4 4 0 0 1-5 5l-7.8 7.8a2.1 2.1 0 0 0 3 3l7.8-7.8a4 4 0 0 0 5-5l-3 3-3-3Z" /></>}
   </svg>;
 }
@@ -668,17 +726,20 @@ function RequestsPage({ user, requests, quotes, jobs, providers, categories, mun
   onQuote: (input: { requestId: string; scope: string; materialsNote: string; exclusions: string; labor: number; materials: number; travel: number; expiresAt: string; proposedAt: string | null }) => Promise<void>;
   onAccept: (id: string) => Promise<void>;
 }) {
+  const [filter, setFilter] = useState<'todas' | 'abiertas' | 'contratadas' | 'recibidas'>('todas');
+  const visible = requests.filter(request => filter === 'todas' || (filter === 'abiertas' && request.status === 'open') || (filter === 'contratadas' && request.status === 'contracted') || (filter === 'recibidas' && request.client_id !== user?.id));
   return <section className="section"><p className="eyebrow">ACUERDOS CLAROS</p><h1>Solicitudes y cotizaciones</h1>
+    {user && requests.length > 0 && <div className="request-filters" role="group" aria-label="Filtrar solicitudes">{([['todas','Todas'],['abiertas','Abiertas'],['contratadas','Contratadas'],['recibidas','Recibidas']] as const).map(([key, title]) => <button type="button" key={key} aria-pressed={filter === key} onClick={() => setFilter(key)}>{title}</button>)}</div>}
     {!active ? <p className="empty">Esta vista necesita el proyecto real. <a href="/demo/">Prueba el flujo de la demo</a>.</p>
       : !user ? <button className="button primary" type="button" onClick={onSignIn}>Ingresar para consultar</button>
-      : requests.length ? <div className="request-list">{requests.map(request => {
+      : requests.length ? <div className="request-list">{visible.length ? visible.map(request => {
         const mine = request.client_id === user.id;
         const versions = quotes.filter(q => q.request_id === request.id);
         const job = jobs.find(j => j.request_id === request.id);
-        return <article className="panel" key={request.id}>
+        return <article className="panel request-card" key={request.id}>
           <div className="section-head"><div><span className="eyebrow">{mine ? 'MI SOLICITUD' : 'INVITACIÓN RECIBIDA'}</span><h2>{request.title}</h2></div><span className="status">{request.status === 'open' ? 'Abierta' : request.status === 'contracted' ? 'Contratada' : request.status}</span></div>
           <p className="fine">{label(categories, request.category_slug)} · {label(municipalities, request.municipality_slug)} · Creada {date(request.created_at)} · Preferencia {date(request.preferred_at)}</p>
-          <p>{request.description}</p>
+          <p>{request.description}</p><div className="request-summary"><span>{versions.length} {versions.length === 1 ? 'cotización' : 'cotizaciones'}</span><strong>{job ? `Contratado: ${money(versions.find(q => q.id === job.quote_version_id)?.total_amount ?? 0)}` : versions.length ? `Desde ${money(Math.min(...versions.map(q => q.total_amount)))}` : 'Aún sin cotizar'}</strong></div>
           {versions.length > 0 && <div className="quote-list">{versions.map(q => {
             const latest = !versions.some(other => other.provider_id === q.provider_id && other.version > q.version);
             const valid = latest && new Date(q.expires_at) > new Date() && request.status === 'open';
@@ -694,7 +755,7 @@ function RequestsPage({ user, requests, quotes, jobs, providers, categories, mun
           })}</div>}
           {!mine && request.status === 'open' && <QuoteForm requestId={request.id} busy={busy} onSubmit={onQuote} />}
         </article>;
-      })}</div> : <div className="empty"><h3>Aún no tienes solicitudes</h3><p>Cuando invites prestadores o recibas una invitación, aparecerá aquí.</p><button className="button primary" onClick={onExplore}>Explorar servicios</button></div>}
+      }) : <p className="empty">No hay solicitudes con este filtro.</p>}</div> : <div className="empty"><h3>Aún no tienes solicitudes</h3><p>Cuando invites prestadores o recibas una invitación, aparecerá aquí.</p><button className="button primary" onClick={onExplore}>Explorar servicios</button></div>}
   </section>;
 }
 
@@ -799,7 +860,7 @@ function TicketCard({ ticket, job, user, request, address, review, events, messa
     if (['confirmed','scheduled'].includes(job.status)) options.push({ next: 'cancelled', label: 'Cancelar', requiresReason: true });
   }
   if (['confirmed','scheduled','in_progress','completion_reported'].includes(job.status)) options.push({ next: 'disputed', label: 'Reportar problema', requiresReason: true });
-  return <article className="ticket panel">
+  return <article className="ticket panel" id={`job-${job.id}`}>
     <div className="section-head"><div><p className="eyebrow">TICKET DE SERVICIO</p><h2>{ticket.folio}</h2></div><span className="status">{({
       confirmed:'Confirmado',scheduled:'Agendado',in_progress:'En curso',completion_reported:'Terminación reportada',
       completed:'Completado',cancelled:'Cancelado',disputed:'En disputa'
