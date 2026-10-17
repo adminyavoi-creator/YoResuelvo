@@ -1,14 +1,16 @@
 # Ruta de publicación Android · YoResuelvo!
 
 **Actualizado:** 17 de octubre de 2026  
-**Estado:** preparación técnica parcial; todavía no existe un AAB firmado y validado ni una ficha de Play Console lista para producción.
+**Estado:** app creada como borrador en Play Console; preparación técnica parcial. Todavía no existe un AAB firmado y validado ni una ficha de Play Store lista para revisión.
 
 ## Punto de partida comprobado
 
-- Play Console está abierta en la cuenta de desarrollador `TheLogosDev`, de tipo personal. La ficha del desarrollador tiene la información principal capturada; la consola muestra como verificados los datos de contacto y el sitio web. No se copian datos personales al repositorio.
-- Paquete Android: `mx.yoresuelvo.app`.
-- Play Console confirmó que `mx.yoresuelvo.app` está disponible. El formulario quedó preparado con nombre `YoResuelvo!`, idioma es-419, tipo Aplicación y descarga gratis; todavía no hay registro de app porque faltan dos declaraciones obligatorias.
-- En Verificación de desarrolladores de Android aparecen cuatro paquetes ya registrados; `mx.yoresuelvo.app` aún no está registrado. Agregarlo y asociar la clave de firma cuando exista la llave de carga release.
+- Play Console está abierta en la cuenta de desarrollador `TheLogosDev`, de tipo personal. Los datos principales del perfil del desarrollador y sus verificaciones siguen vigentes. No se copian datos personales al repositorio.
+- La app `YoResuelvo!` ya está creada y aparece como borrador en Play Console. Idioma predeterminado: español (Latinoamérica), `es-419`; tipo: Aplicación; distribución: gratuita.
+- Paquete Android: `mx.yoresuelvo.app`. La sección Verificación de desarrolladores de Android ya muestra el paquete como **Registrado**, con tres claves asociadas. Tras crear el primer AAB firmado hay que confirmar que la clave de carga elegida coincide con la registrada.
+- En Contenido de la app siguen pendientes cinco declaraciones: política de privacidad, detalles de acceso, clasificación del contenido, público objetivo y Seguridad de los datos. La ficha predeterminada de Play Store ya tiene textos guardados como borrador, pero faltan el ícono de tienda, el gráfico de funciones y entre dos y ocho capturas reales de teléfono.
+- Se guardaron las declaraciones factuales de que la app no contiene anuncios, no es gubernamental, no ofrece funciones financieras ni de salud y no usa el ID de publicidad de Android. Aún no se enviaron cambios a revisión.
+- La categoría guardada es `Vivienda y hogar`. El correo público de contacto de la ficha reutiliza el correo de desarrollador que ya aparece en el perfil público; teléfono y sitio web de soporte de esta app aún no se configuraron.
 - Capacitor comparte la app React/Vite con la PWA.
 - `compileSdkVersion = 36` y `targetSdkVersion = 36`, requisito vigente para nuevas apps y actualizaciones desde el 31 de agosto de 2026.
 - Existe `npm run android:aab`, que ejecuta `bundleRelease`, pero el proyecto no tiene configurado `signingConfig` de release.
@@ -25,15 +27,15 @@
 4. **Artefacto y firma:** crear llave de carga, guardarla fuera del repo y configurar firma de release. Activar Play App Signing en la primera carga; no publicar credenciales ni archivos de firma en GitHub, Vercel o el bundle.
 5. **Operación de Play:** completar identidad y verificación de desarrollador, ficha de tienda, clasificación de contenido, declaraciones de la app y datos de acceso para revisión. Revisar el registro del paquete Android tras la puesta al día de verificación para desarrolladores de septiembre de 2026.
 
-### Bloqueo actual del formulario de creación
+### Estado actual de configuración en Play Console
 
-La consola exige aceptar dos declaraciones para crear el registro: que la app cumple las Políticas del Programa para Desarrolladores y que se ha cumplido con las leyes de exportación de EE. UU., incluidas las condiciones sobre cifrado. La primera queda pendiente mientras falten eliminación de cuenta y controles de reporte/bloqueo/moderación UGC; no marcarla antes de cerrar esos requisitos. La segunda es una certificación del titular de la cuenta y debe revisarse con la clasificación aplicable al software/cifrado antes de aceptarla. Por eso el formulario está preparado, pero no se creó la app ni se aceptó ninguna declaración.
+La creación de la app ya se completó en la cuenta. No se ha enviado el borrador de ficha, las declaraciones ni una versión a revisión. Las declaraciones sobre privacidad, acceso, clasificación, público y Seguridad de los datos deben completarse después de publicar la política y el proceso de eliminación, preparar un acceso de prueba seguro y cerrar la moderación del contenido generado por usuarios. No declarar cumplimiento general mientras sigan abiertos estos requisitos.
 
 ## Ruta secuencial de lanzamiento
 
 | Paso | Trabajo | Salida comprobable | Bloquea |
 |---|---|---|---|
-| 0. Confirmar Play Console | Verificar quién administra la cuenta, tipo de cuenta (personal/organización), estado de identidad, contactos, pagos/registro de desarrollador, app creada y acceso de Alonso | Cuenta válida y permisos de publicación; registro de app Android verificado | Todos |
+| 0. Confirmar Play Console | Verificar administrador y tipo de cuenta, datos del desarrollador, app `YoResuelvo!`, paquete Android y registro de verificación | App borrador creada; paquete `mx.yoresuelvo.app` registrado | Todos |
 | 1. Cerrar seguridad de producto | Implementar eliminación de cuenta y ruta web; términos de uso y reglas UGC; reporte de usuario/perfil/contenido, bloquear, ocultar y moderar; soporte y apelación | Pruebas funcionales de eliminación y moderación; URLs públicas de políticas | Carga a revisión |
 | 2. Completar contenido de Play | Crear ficha con nombre, descripciones, ícono, feature graphic, capturas actuales, categoría, contacto y URL de privacidad; llenar App content, Data safety, clasificación IARC, anuncios y acceso de revisión | Formularios guardados y revisión previa sin declaraciones faltantes | Revisión de cada track |
 | 3. Preparar el release Android | Confirmar paquete estable, `versionCode` creciente, `versionName`, API 36; proteger y aplicar llave de carga; dejar Play App Signing activado en la primera carga; verificar Firebase para Android/web y variables necesarias | Build de release firmado y configuración de Play App Signing | Subida de AAB |
