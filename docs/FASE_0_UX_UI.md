@@ -1,4 +1,6 @@
-# Fase 0 en marcha — propuesta 3 «Acción»
+# Fase 0 · historial de propuesta 3 «Acción»
+
+**Estado vigente, 17 de octubre de 2026:** la propuesta 3 fue reemplazada por la identidad 06 · Profunda, descrita en `IDENTIDAD.md`. Los colores, el SVG provisional y las limitaciones de la demo narradas abajo documentan una etapa anterior. Hoy existe la aplicación React/PWA/Capacitor con catálogo, perfiles, solicitudes, cotizaciones, tickets, chats por servicio y soporte persistente. Sigue pendiente la validación con usuarios y dispositivos antes del piloto externo.
 
 ## Decisión de producto
 
