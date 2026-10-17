@@ -15,4 +15,4 @@ assert.equal(manifest.version, release.versionName, 'PWA manifest must match rel
 assert.match(gradle, /versionCode\s+releaseVersion\.versionCode/);
 assert.match(gradle, /versionName\s+releaseVersion\.versionName/);
 
-console.log(\`PWA and Android release versions aligned at \${release.versionName} (code \${release.versionCode}).\`);
+console.log('PWA and Android release versions aligned at ' + release.versionName + ' (code ' + release.versionCode + ').');
