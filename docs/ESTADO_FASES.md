@@ -2,6 +2,8 @@
 
 **Actualizado:** 17 de octubre de 2026. El estado distingue base técnica disponible de pruebas con personas, dispositivos y operación real.
 
+**Corte de producción:** PWA **0.3.0** desplegada en [yo-resuelvo.vercel.app](https://yo-resuelvo.vercel.app/) desde `main` (commit `12067d8`, Vercel `READY`). La versión Android configurada comparte `versionName 0.3.0`, `versionCode 2`; `npm run build` valida la paridad PWA/Android/lockfile. En Supabase producción están aplicadas `operations_support` y `support_sender_index`; las dos tablas de Operaciones tienen RLS habilitado y dos políticas cada una. Esto confirma despliegue web y esquema, no la publicación Android.
+
 | Fase | Implementado | Evidencia y límite |
 | --- | --- | --- |
 | 1 Fundación | React/TS, Supabase Auth persistente PKCE, acceso Google preparado para PWA/Android, correo, esquema y RLS | `npm ci`, compilación, migraciones y prueba de aislamiento. Falta configurar el OAuth Client/Provider Google y probar confirmación, recuperación y retorno nativo con cuentas reales. |
@@ -24,12 +26,12 @@ La fase 5 conserva como requisito una revisión de permisos y acceso a datos, ad
 | --- | --- | --- |
 | Package/API | `mx.yoresuelvo.app`; `compileSdk` y `targetSdk` en 36 | Mantener API objetivo vigente para cada actualización. |
 | Firebase Android | `google-services.json` local, project/package verificados | Compilar Gradle, instalar desde track y validar FCM foreground/background/terminada + navegación al abrir aviso. |
-| Firma/AAB | El script `npm run android:aab` existe; `versionCode` actual 1 | Configurar llave de carga y Play App Signing fuera de Git; producir, revisar y validar el AAB firmado. |
-| Play Console | Cuenta y ficha no verificadas en esta revisión | Confirmar titular/tipo/antigüedad de cuenta, identidad del desarrollador, registro de paquete y ficha/políticas. |
+| Firma/AAB | `versionName 0.3.0`, `versionCode 2`; paridad comprobada; no existe AAB | Este entorno no tiene Java y Gradle no puede ejecutar; además falta una configuración/llave de carga release. Construir y validar un AAB firmado fuera de Git. |
+| Play Console | App `YoResuelvo!` en borrador; paquete `mx.yoresuelvo.app` registrado; icono y gráfico guardados | Faltan capturas reales de teléfono y completar los formularios aplicables de contenido/políticas. |
 | Requisitos de producto | Solicitud de eliminación dentro de la app y página web presentes; moderación de perfiles/reseñas e incidencias de servicio implementadas | Ensayar eliminación con una cuenta controlada. Completar reporte de perfiles/contenido y bloqueo general de usuarios, y revisar el contenido generado por usuarios antes de producción. |
-| Tracks | No hay AAB cargado a internal/closed/production en esta revisión | Probar internal; closed testing; si cuenta personal creada tras 13 nov 2023, mantener 12 testers optados-in durante 14 días consecutivos y solicitar acceso a producción. |
+| Tracks | No hay AAB cargado a internal/closed/production | Subir el AAB firmado 0.3.0 a internal y probar en dispositivo; luego evaluar closed testing según la antigüedad/tipo de cuenta. |
 
-La app ya usa API 36, requisito de Google Play vigente desde el 31 de agosto de 2026 para apps nuevas y actualizaciones. El artefacto firmado, la experiencia de revisión y la entrega de FCM en teléfono siguen pendientes; no marcar la app como publicada en Google Play.
+La app ya usa API 36, requisito de Google Play vigente desde el 31 de agosto de 2026 para apps nuevas y actualizaciones. `npm run android:aab` sincronizó los recursos web y Android, pero terminó con `Unable to locate a Java Runtime`; no se generó AAB. La experiencia instalada, la entrega de FCM y cualquier track de Play siguen pendientes; no marcar la app como publicada en Google Play.
 
 ## Alcance restante antes del piloto externo
 
@@ -46,7 +48,7 @@ La app ya usa API 36, requisito de Google Play vigente desde el 31 de agosto de 
 | Fase | Núcleo técnico | Límite de salida |
 | --- | --- | --- |
 | 6 Comunicación | Mensajes privados por ticket, avisos internos, preferencias y cola push con RLS/Edge Function; migración para programar el worker incluida | Confirmar los secretos en Vault/Edge Function, que la tarea corre en producción y la entrega FCM real; correo sigue pendiente. |
-| 7 PWA/Android | Manifiesto PWA, shell y Capacitor Android con enlace OAuth; JSON de Google Services está local y package ID coincide | Falta compilar con Gradle, construir y firmar AAB, cargar a Play tracks y probar FCM/Auth en dispositivos físicos. La firma y el JSON no se publican como secretos en GitHub. |
+| 7 PWA/Android | PWA 0.3.0 en producción; Capacitor Android configura `versionName 0.3.0`, `versionCode 2`; JSON de Google Services local | Falta Java/Gradle operativo, llave de carga, AAB firmado, carga a Play y prueba de FCM/Auth en Android físico. La firma y el JSON no se publican en GitHub. |
 | 8 Expansión | RPC de cobertura por municipio/oficio, calculada solo con perfiles aprobados y disponibles | No abrir un municipio sin oferta validada y responsable operativo. |
 | 9 Oportunidades | Publicación e interés filtrados por oficio, municipio y prestador aprobado; sin teléfonos ni dirección | La conversión a contratación debe seguir el flujo de solicitud/cotización/ticket. |
 
@@ -66,5 +68,5 @@ Las fases 10–13 amplían la base técnica en Supabase y la aplicación; no se 
 - Base YoResuelvo! activa: **1 cuenta**, **0 operadores**, **0 especialistas aprobados**, **0 solicitudes**, **0 trabajos** y **0 mensajes de servicio** al momento de la consulta. No existe aún un caso real para demostrar el recorrido cliente–especialista.
 - Iteración de interfaz: Inicio y Explorar diferenciados, doce oficios con iconografía específica, carrusel táctil, mejor calificados con reseñas reales, filtro Lista/Mapa OSM regional, filtros de solicitudes, bandeja de conversaciones por trabajo y acceso a Operaciones. El mapa regional no muestra pines de especialistas porque no se han recogido coordenadas públicas consentidas.
 - Soporte: migración `operations_support` aplicada; tablas `support_threads` y `support_messages` con RLS, canal privado por usuario y lectura/respuesta por staff. La interfaz se actualizó. Sin operadores asignados, los mensajes pueden quedar guardados pero no existe atención humana activa.
-- Verificación: `npm run build`, `npm test` y `npm run test:release` pasan. La base confirmó RLS habilitado y cero hilos al terminar un ensayo transaccional revertido. La vista previa Vercel de la rama quedó `READY`; se comprobó en Chrome el Inicio a 390×844 con barra de cinco secciones, doce categorías y carrusel. Los clics automáticos en esa vista agotaron tiempo de espera antes de ejecutarse; falta validar el recorrido interactivo y Android físico.
-- Play Console: texto, icono 512×512 y gráfico destacado 1024×500 guardados en la ficha en español. Faltan capturas de teléfono de la versión integrada. No se declara lista la publicación.
+- Verificación: `npm run build`, `npm test` y `npm run test:release` pasan; Vercel producción quedó `READY`, sin errores runtime en la última hora consultada. Supabase confirmó RLS y dos políticas por tabla de Operaciones. En vista previa se observó Inicio a 390×844 con navegación, doce categorías y carrusel; no se completó E2E de clics ni prueba Android física.
+- Play Console: texto, icono 512×512 y gráfico destacado 1024×500 guardados en ficha. Faltan capturas de teléfono, AAB firmado y lanzamiento en pista interna. No se declara lista la publicación Android.
