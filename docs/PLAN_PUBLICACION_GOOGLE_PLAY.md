@@ -5,7 +5,10 @@
 
 ## Punto de partida comprobado
 
+- Play Console está abierta en la cuenta de desarrollador `TheLogosDev`, de tipo personal. La ficha del desarrollador tiene la información principal capturada; la consola muestra como verificados los datos de contacto y el sitio web. No se copian datos personales al repositorio.
 - Paquete Android: `mx.yoresuelvo.app`.
+- Play Console confirmó que `mx.yoresuelvo.app` está disponible. El formulario quedó preparado con nombre `YoResuelvo!`, idioma es-419, tipo Aplicación y descarga gratis; todavía no hay registro de app porque faltan dos declaraciones obligatorias.
+- En Verificación de desarrolladores de Android aparecen cuatro paquetes ya registrados; `mx.yoresuelvo.app` aún no está registrado. Agregarlo y asociar la clave de firma cuando exista la llave de carga release.
 - Capacitor comparte la app React/Vite con la PWA.
 - `compileSdkVersion = 36` y `targetSdkVersion = 36`, requisito vigente para nuevas apps y actualizaciones desde el 31 de agosto de 2026.
 - Existe `npm run android:aab`, que ejecuta `bundleRelease`, pero el proyecto no tiene configurado `signingConfig` de release.
@@ -21,6 +24,10 @@
 3. **Privacidad y transparencia:** publicar una política de privacidad accesible desde la app y Play Store; completar Data safety con un inventario real de Supabase Auth, base de datos, Storage, FCM y SDK incluidos. La declaración debe corresponder al comportamiento y al aviso de privacidad.
 4. **Artefacto y firma:** crear llave de carga, guardarla fuera del repo y configurar firma de release. Activar Play App Signing en la primera carga; no publicar credenciales ni archivos de firma en GitHub, Vercel o el bundle.
 5. **Operación de Play:** completar identidad y verificación de desarrollador, ficha de tienda, clasificación de contenido, declaraciones de la app y datos de acceso para revisión. Revisar el registro del paquete Android tras la puesta al día de verificación para desarrolladores de septiembre de 2026.
+
+### Bloqueo actual del formulario de creación
+
+La consola exige aceptar dos declaraciones para crear el registro: que la app cumple las Políticas del Programa para Desarrolladores y que se ha cumplido con las leyes de exportación de EE. UU., incluidas las condiciones sobre cifrado. La primera queda pendiente mientras falten eliminación de cuenta y controles de reporte/bloqueo/moderación UGC; no marcarla antes de cerrar esos requisitos. La segunda es una certificación del titular de la cuenta y debe revisarse con la clasificación aplicable al software/cifrado antes de aceptarla. Por eso el formulario está preparado, pero no se creó la app ni se aceptó ninguna declaración.
 
 ## Ruta secuencial de lanzamiento
 
