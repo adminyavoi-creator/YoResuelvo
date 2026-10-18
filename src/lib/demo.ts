@@ -14,9 +14,16 @@ export const demoMunicipalities: Municipality[] = [
   { slug: 'saucillo', name: 'Saucillo', position: 4 }
 ];
 export const demoProviders: Provider[] = [
-  { id: 'demo-1', display_name: 'Electricidad del Centro', bio: 'Instalaciones y diagnóstico eléctrico residencial. Perfil de ejemplo.', municipality_slug: 'delicias', approval_status: 'approved', available: true, categories: ['electricidad'] },
-  { id: 'demo-2', display_name: 'Soluciones Eléctricas Norte', bio: 'Mantenimiento de contactos e instalaciones. Perfil de ejemplo.', municipality_slug: 'delicias', approval_status: 'approved', available: true, categories: ['electricidad'] },
-  { id: 'demo-3', display_name: 'Plomería Río San Pedro', bio: 'Fugas, llaves y mantenimiento hidráulico. Perfil de ejemplo.', municipality_slug: 'meoqui', approval_status: 'approved', available: true, categories: ['plomeria'] },
-  { id: 'demo-4', display_name: 'Cerrajería Regional', bio: 'Cerraduras y duplicados con acceso autorizado. Perfil de ejemplo.', municipality_slug: 'delicias', approval_status: 'approved', available: true, categories: ['cerrajeria'] },
-  { id: 'demo-5', display_name: 'Limpieza Casa Clara', bio: 'Limpieza programada para hogares y negocios. Perfil de ejemplo.', municipality_slug: 'rosales', approval_status: 'approved', available: true, categories: ['limpieza'] }
+  { id: 'demo-electricidad', display_name: 'Alex Ríos · Electricidad', bio: 'Instalaciones, cambio de contactos y diagnóstico residencial. Perfil ficticio para validar la vista del mapa.', municipality_slug: 'delicias', approval_status: 'approved', available: true, categories: ['electricidad'], years_experience: 8, specialties: ['Instalaciones', 'Iluminación', 'Diagnóstico'], demo_location: { latitude: 28.198, longitude: -105.485 } },
+  { id: 'demo-plomeria', display_name: 'Marta Salas · Plomería', bio: 'Reparación de fugas, llaves y mantenimiento de tinacos. Perfil ficticio para pruebas.', municipality_slug: 'delicias', approval_status: 'approved', available: true, categories: ['plomeria'], years_experience: 6, specialties: ['Fugas', 'Grifería', 'Tinacos'], demo_location: { latitude: 28.204, longitude: -105.455 } },
+  { id: 'demo-cerrajeria', display_name: 'Taller Llave Norte · Cerrajería', bio: 'Cambio y mantenimiento de cerraduras con autorización de la persona solicitante. Perfil de demostración.', municipality_slug: 'delicias', approval_status: 'approved', available: true, categories: ['cerrajeria'], years_experience: 11, specialties: ['Cerraduras', 'Duplicados', 'Mantenimiento'], demo_location: { latitude: 28.184, longitude: -105.451 } },
+  { id: 'demo-limpieza', display_name: 'Casa Clara · Limpieza', bio: 'Limpieza programada para hogares y pequeños negocios. Datos ficticios para revisar filtros y marcadores.', municipality_slug: 'delicias', approval_status: 'approved', available: true, categories: ['limpieza'], years_experience: 5, specialties: ['Limpieza profunda', 'Oficinas', 'Mantenimiento'], demo_location: { latitude: 28.178, longitude: -105.482 } }
 ];
+
+/** These clearly labeled fixture reviews exist only in the demo bundle, never in Supabase. */
+export const demoReviews = demoProviders.map((provider, index) => ({
+  provider_id: provider.id,
+  rating: [5, 4, 5, 4][index],
+  body: 'Calificación ficticia para probar la etiqueta de estrellas del mapa.',
+  created_at: '2026-10-01T12:00:00.000Z'
+}));

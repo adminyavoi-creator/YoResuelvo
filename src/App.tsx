@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { savedAuthIntent, saveAuthIntent, signInWithGoogle, type AuthIntent } from './lib/auth';
 import { activePushForThisDevice, disableAllPushForUser, disablePushForThisDevice, enablePushForUser, forgetPushOnSignOut, pushDeliveryConfigured } from './lib/push';
@@ -8,7 +8,7 @@ import {
   createReview, markNotificationRead, pendingReports, reviewQueue, moderateReview, sendJobMessage,
   saveNotificationPreferences, exportMyData, fileReportAppeal, pendingAppeals, reviewReportAppeal, operationalMetrics, uploadProviderPhoto, providerPhotoUrl, supportInbox, sendSupportMessage
 } from './lib/api';
-import { demoCategories, demoMunicipalities, demoProviders } from './lib/demo';
+import { demoCategories, demoMunicipalities, demoProviders, demoReviews } from './lib/demo';
 import type {
   Category, Municipality, Provider, ServiceRequest, Quote, Job, Ticket, PendingProvider,
   Address, Review, OwnReview, ModerationReview, Notification, Report, JobEvent, JobMessage,
@@ -17,6 +17,7 @@ import type {
 
 type Page = 'inicio' | 'explorar' | 'solicitudes' | 'chat' | 'ofrecer' | 'tickets' | 'moderacion' | 'cuenta';
 const money = (n: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n);
+const demoMapMode = new URLSearchParams(window.location.search).get('demo') === 'mapa';
 const date = (v: string | null) => v
   ? new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Chihuahua' }).format(new Date(v))
   : 'Por acordar';
@@ -31,8 +32,8 @@ const requestedPushPage = (): Page | null => {
 };
 
 export default function App() {
-  const [page, setPage] = useState<Page>(() => requestedPushPage() ?? 'inicio');
-  const [exploreView, setExploreView] = useState<'lista' | 'mapa'>('lista');
+  const [page, setPage] = useState<Page>(() => demoMapMode ? 'explorar' : requestedPushPage() ?? 'inicio');
+  const [exploreView, setExploreView] = useState<'lista' | 'mapa'>(() => demoMapMode ? 'mapa' : 'lista');
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -40,7 +41,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [categories, setCategories] = useState<Category[]>(demoCategories);
   const [municipalities, setMunicipalities] = useState<Municipality[]>(demoMunicipalities);
-  const [providers, setProviders] = useState<Provider[]>(configured ? [] : demoProviders);
+  const [providers, setProviders] = useState<Provider[]>(configured && !demoMapMode ? [] : demoProviders);
   const [ownProvider, setOwnProvider] = useState<Provider | null>(null);
   const [staffRole, setStaffRole] = useState<string | null>(null);
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
@@ -50,7 +51,7 @@ export default function App() {
   const [pending, setPending] = useState<PendingProvider[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [moderationReviews, setModerationReviews] = useState<ModerationReview[]>([]);
-  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviews, setReviews] = useState<Review[]>(configured && !demoMapMode ? [] : demoReviews);
   const [ownReviews, setOwnReviews] = useState<OwnReview[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -77,7 +78,7 @@ export default function App() {
   const [authIntent, setAuthIntent] = useState<AuthIntent>(() => savedAuthIntent());
 
   async function refresh(currentUser: User | null = user) {
-    if (!configured) return;
+    if (!configured || demoMapMode) return;
     const c = await catalog();
     setCategories(c.categories);
     setMunicipalities(c.municipalities);
@@ -124,16 +125,16 @@ export default function App() {
           callbackUrl.searchParams.delete('error_description'); callbackUrl.searchParams.delete('error');
           window.history.replaceState({}, '', `${callbackUrl.pathname}${callbackUrl.search}${callbackUrl.hash}`);
         }
-        const currentUser = db ? (await db.auth.getUser()).data.user : null;
+        const currentUser = db && !demoMapMode ? (await db.auth.getUser()).data.user : null;
         if (!active) return;
         setUser(currentUser);
-        setPage(requestedPushPage() ?? (currentUser && savedAuthIntent() === 'prestador' ? 'ofrecer' : 'inicio'));
+        setPage(demoMapMode ? 'explorar' : requestedPushPage() ?? (currentUser && savedAuthIntent() === 'prestador' ? 'ofrecer' : 'inicio'));
         await refresh(currentUser);
       } catch (e) { if (active) setError(errText(e)); }
       finally { if (active) setReady(true); }
     }
     void initialize();
-    const subscription = db?.auth.onAuthStateChange((event, session) => {
+    const subscription = demoMapMode ? undefined : db?.auth.onAuthStateChange((event, session) => {
       if (active) {
         setUser(session?.user ?? null);
         if (event === 'SIGNED_IN') setPage(savedAuthIntent() === 'prestador' ? 'ofrecer' : 'inicio');
@@ -198,6 +199,7 @@ export default function App() {
     return score(b) - score(a);
   }), [providers, reviews]);
   function startRequest(selected: Provider[]) {
+    if (demoMapMode) { setMessage('Esta vista usa perfiles ficticios y no envía solicitudes.'); return; }
     if (!configured) { window.location.href = '/demo/#catalogo'; return; }
     if (!user) { setAuthIntent('cliente'); navigate('cuenta'); return; }
     const first = selected[0];
@@ -211,22 +213,23 @@ export default function App() {
 
   return <div className="app-shell">
     <header className="header wrap">
-      <button type="button" className="brand" onClick={() => navigate('inicio')} aria-label="YoResuelvo!, inicio">
+      <button type="button" className="brand" onClick={() => navigate(demoMapMode ? 'explorar' : 'inicio')} aria-label="YoResuelvo!, inicio">
         <img src="/brand/yoresuelvo-icon-512.png" alt="" /><span>YoResuelvo<span className="brand-mark">!</span><small>DELICIAS Y LA REGIÓN</small></span>
       </button>
-      <nav aria-label="Navegación principal">
+      {demoMapMode ? <nav aria-label="Navegación principal"><button type="button" aria-current="page" onClick={() => navigate('explorar')}>Mapa</button></nav> : <nav aria-label="Navegación principal">
         <button type="button" aria-current={page === 'explorar' ? 'page' : undefined} onClick={() => navigate('explorar')}>Explorar</button>
         <button type="button" aria-current={page === 'solicitudes' ? 'page' : undefined} onClick={() => navigate('solicitudes')}>Solicitudes</button>
         <button type="button" aria-current={page === 'ofrecer' ? 'page' : undefined} onClick={() => navigate('ofrecer')}>Ofrecer</button>
         <button type="button" aria-current={page === 'tickets' ? 'page' : undefined} onClick={() => navigate('tickets')}>Tickets</button>
         {staffRole && <button type="button" aria-current={page === 'moderacion' ? 'page' : undefined} onClick={() => navigate('moderacion')}>Revisión</button>}
-      </nav>
-      <button type="button" className="header-action" onClick={() => navigate('cuenta')} aria-label={user ? 'Mi cuenta y notificaciones' : 'Ingresar'}>
+      </nav>}
+      {!demoMapMode && <button type="button" className="header-action" onClick={() => navigate('cuenta')} aria-label={user ? 'Mi cuenta y notificaciones' : 'Ingresar'}>
         {user ? '♧' : '↗'}{notifications.some(item => !item.read_at) && <span className="notification-dot" />}
-      </button>
+      </button>}
     </header>
     <main className="wrap">
-      {!configured && <div className="demo-banner" role="status"><span>●</span> Vista de diseño · perfiles ficticios. <a href="/demo/">Abrir demo interactiva</a></div>}
+      {demoMapMode && <div className="demo-banner" role="status"><span>●</span> Modo de prueba del mapa · 4 perfiles, imágenes ilustrativas y calificaciones ficticias. No envía solicitudes. <a href="/">Salir de la prueba</a></div>}
+      {!configured && !demoMapMode && <div className="demo-banner" role="status"><span>●</span> Vista de diseño · perfiles ficticios. <a href="/demo/">Abrir demo interactiva</a></div>}
       {!ready && <p role="status">Cargando…</p>}
       {error && <p className="alert error" role="alert">{error}</p>}
       {message && <p className="alert success" role="status">{message}</p>}
@@ -266,8 +269,8 @@ export default function App() {
             </button>)}</div>
           </div>
           <div className="browse-heading pros-heading"><div><h2>Personas que resuelven</h2><small>{filtered.length} {filtered.length === 1 ? 'perfil' : 'perfiles'} en tu búsqueda</small></div><button type="button" onClick={() => navigate('ofrecer')}>Ofrecer servicios ↗</button></div>
-          <div className="view-switch" role="group" aria-label="Vista de especialistas"><button type="button" aria-pressed={exploreView === 'lista'} onClick={() => setExploreView('lista')}>☷ Lista</button><button type="button" aria-pressed={exploreView === 'mapa'} onClick={() => setExploreView('mapa')}>⌖ Mapa OSM</button></div>
-          {exploreView === 'mapa' && <div className="map-panel"><iframe title="Mapa de OpenStreetMap de Delicias y la región" loading="lazy" src="https://www.openstreetmap.org/export/embed.html?bbox=-106.12%2C27.80%2C-105.20%2C28.75&layer=mapnik" /><p>Zona de cobertura aproximada por municipio; no representa el domicilio ni la ubicación en tiempo real del especialista. Selecciona una ficha para ver su perfil.</p><div className="map-providers">{filtered.map(p => { const items = reviews.filter(r => r.provider_id === p.id); return <button type="button" key={p.id} onClick={() => setProfilePreview(p)}><span className="category-icon"><CategoryIcon slug={p.categories[0] ?? ''} /></span><span><strong>{label(categories, p.categories[0] ?? '')} · {p.display_name}</strong><small>{label(municipalities, p.municipality_slug)} · {items.length ? `★ ${(items.reduce((sum, r) => sum + r.rating, 0) / items.length).toFixed(1)}` : '☆ Sin reseñas'}</small></span></button>; })}</div></div>}
+          <div className="view-switch" role="group" aria-label="Vista de especialistas">{!demoMapMode && <button type="button" aria-pressed={exploreView === 'lista'} onClick={() => setExploreView('lista')}>☷ Lista</button>}<button type="button" aria-pressed={exploreView === 'mapa'} onClick={() => setExploreView('mapa')}>⌖ Mapa</button></div>
+          {exploreView === 'mapa' && <ProviderMap providers={filtered} reviews={reviews} categories={categories} municipalities={municipalities} demoMode={demoMapMode || !configured} onOpenProfile={setProfilePreview} />}
           {exploreView === 'lista' && <>
           {filtered.length ? <div className="cards provider-cards">{filtered.map(p => { const ratings = reviews.filter(r => r.provider_id === p.id); return <article className="card provider-card" key={p.id}>
             <button type="button" className="provider-photo" onClick={() => setProfilePreview(p)} aria-label={`Conocer a ${p.display_name}`}><img src={providerImage(p)} alt={p.photo_paths?.length ? `Trabajo de ${p.display_name}` : ''} loading="lazy" />{!p.photo_paths?.length && <span>Foto ilustrativa del servicio</span>}</button>
@@ -352,13 +355,16 @@ export default function App() {
         {moderationReviews.length ? <div className="request-list">{moderationReviews.map(review => <ModerationReviewCard key={review.job_id} review={review} busy={busy}
           onModerate={(published, reason) => action(() => moderateReview(review.job_id, published, reason), 'Reseña revisada con motivo auditado.', 'moderacion')} />)}</div> : <p className="empty">Aún no hay reseñas.</p>}
       </section>}
-      {profilePreview && <ProviderProfileDialog provider={profilePreview} categories={categories} municipalities={municipalities}
+      {profilePreview && <ProviderProfileDialog provider={profilePreview} categories={categories} municipalities={municipalities} demoMode={demoMapMode || !configured}
         reviews={reviews.filter(review => review.provider_id === profilePreview.id)} compared={compared.includes(profilePreview.id)}
         canCompare={compared.length < 3 || compared.includes(profilePreview.id)} onClose={() => setProfilePreview(null)}
         onCompare={() => { setCompared(ids => ids.includes(profilePreview.id) ? ids : [...ids, profilePreview.id]); setProfilePreview(null); }}
         onRequest={() => { const selected = profilePreview; setProfilePreview(null); startRequest([selected]); }} />}
     </main>
     <nav className="mobile-tabbar" aria-label="Navegación rápida">
+      {demoMapMode ? <button type="button" aria-current="page" onClick={() => navigate('explorar')}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5 8 4l8 3 5-2.5v13L16 20l-8-3-5 2.5v-13Z" /><path d="M8 4v13m8-10v13" /></svg><span>Mapa</span>
+      </button> : <>
       <button type="button" aria-current={page === 'inicio' ? 'page' : undefined} onClick={() => navigate('inicio')}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" /></svg><span>Inicio</span>
       </button>
@@ -374,6 +380,7 @@ export default function App() {
       <button type="button" aria-current={page === 'cuenta' ? 'page' : undefined} onClick={() => navigate('cuenta')}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg><span>Perfil</span>
       </button>
+      </>}
     </nav>
     <footer className="wrap app-footer"><span>YoResuelvo! · Delicias y la región</span><small>Los tickets registran acuerdos de servicio; no son facturas ni comprobantes de pago.</small><nav className="policy-links" aria-label="Privacidad y ayuda"><a href="/privacy.html">Aviso de privacidad</a><a href="/terms.html">Términos de uso</a><a href="/delete-account.html">Eliminar cuenta</a></nav></footer>
   </div>;
@@ -384,6 +391,129 @@ function SupportConversation({ userId, messages, busy, onSend }: { userId: strin
   return <div className="support-conversation" aria-label="Conversación con Operaciones">
     <div className="support-history" role="log" aria-live="polite">{messages.length ? messages.map(item => <div className={`support-bubble${item.sender_id === userId ? ' customer' : ' operator'}`} key={item.id}><p>{item.body}</p><small>{item.sender_id === userId ? 'Cliente' : 'Operaciones'} · {date(item.created_at)}</small></div>) : <p>Aún no hay mensajes en esta conversación.</p>}</div>
     <form onSubmit={event => { event.preventDefault(); if (!draft.trim()) return; void onSend(draft).then(sent => { if (sent) setDraft(''); }); }}><label className="sr-only" htmlFor={`support-${userId}`}>Escribir mensaje</label><input id={`support-${userId}`} value={draft} maxLength={1500} onChange={event => setDraft(event.target.value)} placeholder="Escribe a Operaciones" /><button type="submit" disabled={busy || !draft.trim()}>Enviar</button></form>
+  </div>;
+}
+
+type GeoPoint = { latitude: number; longitude: number };
+type MapCenter = GeoPoint;
+
+function projectMapPoint(point: GeoPoint, zoom: number) {
+  const scale = 256 * 2 ** zoom;
+  const latitude = Math.max(-85.0511, Math.min(85.0511, point.latitude)) * Math.PI / 180;
+  return {
+    x: (point.longitude + 180) / 360 * scale,
+    y: (1 - Math.asinh(Math.tan(latitude)) / Math.PI) / 2 * scale
+  };
+}
+
+function unprojectMapPoint(x: number, y: number, zoom: number): MapCenter {
+  const scale = 256 * 2 ** zoom;
+  const n = Math.PI - 2 * Math.PI * y / scale;
+  return {
+    latitude: 180 / Math.PI * Math.atan(Math.sinh(n)),
+    longitude: x / scale * 360 - 180
+  };
+}
+
+function ProviderMap({ providers, reviews, categories, municipalities, demoMode, onOpenProfile }: {
+  providers: Provider[]; reviews: Review[]; categories: Category[]; municipalities: Municipality[];
+  demoMode: boolean; onOpenProfile: (provider: Provider) => void;
+}) {
+  const [center, setCenter] = useState<MapCenter>({ latitude: 28.191, longitude: -105.468 });
+  const [zoom, setZoom] = useState(13);
+  const [size, setSize] = useState({ width: 720, height: 370 });
+  const mapRef = useRef<HTMLDivElement>(null);
+  const dragStart = useRef<{ pointerId: number; x: number; y: number; centerX: number; centerY: number } | null>(null);
+  const centerPoint = projectMapPoint(center, zoom);
+
+  useEffect(() => {
+    const element = mapRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(entries => {
+      const rect = entries[0]?.contentRect;
+      if (rect) setSize({ width: rect.width, height: rect.height });
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const firstTileX = Math.floor((centerPoint.x - size.width / 2) / 256);
+  const lastTileX = Math.floor((centerPoint.x + size.width / 2) / 256);
+  const firstTileY = Math.floor((centerPoint.y - size.height / 2) / 256);
+  const lastTileY = Math.floor((centerPoint.y + size.height / 2) / 256);
+  const tileCount = 2 ** zoom;
+  const tiles: { key: string; x: number; y: number; url: string }[] = [];
+  for (let tileY = firstTileY; tileY <= lastTileY; tileY += 1) {
+    if (tileY < 0 || tileY >= tileCount) continue;
+    for (let tileX = firstTileX; tileX <= lastTileX; tileX += 1) {
+      const wrappedX = (tileX % tileCount + tileCount) % tileCount;
+      tiles.push({
+        key: zoom + '-' + wrappedX + '-' + tileY,
+        x: tileX * 256 - centerPoint.x + size.width / 2,
+        y: tileY * 256 - centerPoint.y + size.height / 2,
+        url: 'https://tile.openstreetmap.org/' + zoom + '/' + wrappedX + '/' + tileY + '.png'
+      });
+    }
+  }
+  const located = providers.filter(provider => provider.demo_location);
+  function changeZoom(next: number) {
+    setZoom(Math.max(11, Math.min(18, next)));
+  }
+  function beginPan(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0 || (event.target as HTMLElement).closest('button, a')) return;
+    const projected = projectMapPoint(center, zoom);
+    dragStart.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, centerX: projected.x, centerY: projected.y };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+  function movePan(event: ReactPointerEvent<HTMLDivElement>) {
+    const start = dragStart.current;
+    if (!start || start.pointerId !== event.pointerId) return;
+    setCenter(unprojectMapPoint(start.centerX - (event.clientX - start.x), start.centerY - (event.clientY - start.y), zoom));
+  }
+  function endPan(event: ReactPointerEvent<HTMLDivElement>) {
+    if (dragStart.current?.pointerId === event.pointerId) dragStart.current = null;
+  }
+  return <div className="map-panel">
+    <div className="osm-map" ref={mapRef} role="group" aria-label="Mapa interactivo de OpenStreetMap de Delicias. Arrastra para moverte; usa los controles para acercar o alejar."
+      onPointerDown={beginPan} onPointerMove={movePan} onPointerUp={endPan} onPointerCancel={endPan}>
+      <div className="osm-tiles" aria-hidden="true">{tiles.map(tile => <img key={tile.key} src={tile.url} alt="" draggable={false} style={{ left: tile.x, top: tile.y }} />)}</div>
+      {located.map(provider => {
+        const point = projectMapPoint(provider.demo_location!, zoom);
+        const x = point.x - centerPoint.x + size.width / 2;
+        const y = point.y - centerPoint.y + size.height / 2;
+        if (x < -65 || x > size.width + 65 || y < -55 || y > size.height + 55) return null;
+        const items = reviews.filter(review => review.provider_id === provider.id);
+        const average = items.length ? (items.reduce((sum, review) => sum + review.rating, 0) / items.length).toFixed(1) : null;
+        const service = label(categories, provider.categories[0] ?? '');
+        return <button type="button" className="map-provider-marker" key={provider.id} style={{ left: x, top: y }}
+          aria-label={'Abrir perfil de ' + provider.display_name + ', ' + service + ', ' + (average ? 'calificación de prueba ' + average + ' de 5' : 'sin calificación')}
+          onClick={() => onOpenProfile(provider)}>
+          <span className="map-pin-icon"><CategoryIcon slug={provider.categories[0] ?? ''} /></span>
+          <span className="map-marker-label"><strong>{service}</strong><small>{average ? '★ ' + average + ' · prueba' : '☆ Sin reseñas'}</small></span>
+        </button>;
+      })}
+      <div className="osm-controls" aria-label="Controles del mapa">
+        <button type="button" aria-label="Acercar mapa" onClick={() => changeZoom(zoom + 1)}>＋</button>
+        <button type="button" aria-label="Alejar mapa" onClick={() => changeZoom(zoom - 1)}>−</button>
+        <button type="button" aria-label="Centrar mapa en Delicias" onClick={() => { setCenter({ latitude: 28.191, longitude: -105.468 }); setZoom(13); }}>⌖</button>
+      </div>
+      <a className="osm-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap</a>
+    </div>
+    <p className="map-disclosure">{demoMode
+      ? 'Ubicaciones ficticias de prueba alrededor del centro de Delicias. Las calificaciones también son ejemplos; no representan domicilios ni reseñas reales.'
+      : 'Solo se mostrarán perfiles con ubicación aproximada pública y autorizada. No se representa el domicilio particular del especialista.'}</p>
+    <div className="map-providers">{providers.map(provider => {
+      const items = reviews.filter(review => review.provider_id === provider.id);
+      const average = items.length ? (items.reduce((sum, review) => sum + review.rating, 0) / items.length).toFixed(1) : null;
+      return <button type="button" key={provider.id} onClick={() => onOpenProfile(provider)}>
+        <img src={providerImage(provider)} alt="" />
+        <span><strong>{label(categories, provider.categories[0] ?? '')} · {provider.display_name}</strong>
+          <small>{label(municipalities, provider.municipality_slug)} · {average ? '★ ' + average + (demoMode ? ' · prueba' : '') : '☆ Sin reseñas'}</small>
+          {!provider.demo_location && <small>Sin ubicación pública</small>}
+        </span><b aria-hidden="true">→</b>
+      </button>;
+    })}</div>
+    {!providers.length && <p className="empty map-empty">No hay especialistas para estos filtros. Los marcadores aparecerán cuando existan ubicaciones públicas autorizadas.</p>}
   </div>;
 }
 
@@ -406,9 +536,9 @@ function CategoryIcon({ slug }: { slug: string }) {
   </svg>;
 }
 
-function ProviderProfileDialog({ provider, categories, municipalities, reviews, compared, canCompare, onClose, onCompare, onRequest }: {
+function ProviderProfileDialog({ provider, categories, municipalities, reviews, compared, canCompare, demoMode, onClose, onCompare, onRequest }: {
   provider: Provider; categories: Category[]; municipalities: Municipality[]; reviews: Review[];
-  compared: boolean; canCompare: boolean; onClose: () => void; onCompare: () => void; onRequest: () => void;
+  compared: boolean; canCompare: boolean; demoMode: boolean; onClose: () => void; onCompare: () => void; onRequest: () => void;
 }) {
   const recentReviews = [...reviews].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).slice(0, 3);
   const average = reviews.length ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1) : null;
@@ -425,16 +555,16 @@ function ProviderProfileDialog({ provider, categories, municipalities, reviews, 
           <p>Profesional en {label(municipalities, provider.municipality_slug)}</p></div></div>
       <div className="profile-facts"><span>⌖ {label(municipalities, provider.municipality_slug)}</span>
         <span className={provider.available ? 'status' : 'status paused'}>{provider.available ? 'Recibe solicitudes' : 'No disponible por ahora'}</span>
-        {average ? <span className="profile-rating">★ {average} · {reviews.length} reseña{reviews.length === 1 ? '' : 's'}</span> : <span>Aún sin reseñas verificadas</span>}
+        {average ? <span className="profile-rating">★ {average} · {demoMode ? 'calificación de prueba' : reviews.length + ' reseña(s)'}</span> : <span>Aún sin reseñas verificadas</span>}
       </div>
       <div className="profile-highlights"><div><strong>{reviews.length || '—'}</strong><span>Reseñas</span></div><div><strong>{provider.years_experience ? `${provider.years_experience} años` : 'Por agregar'}</strong><span>Experiencia</span></div><div><strong>Por confirmar</strong><span>Tiempo de respuesta</span></div></div>
       <div className="profile-dialog-copy"><h3>Experiencia y servicios</h3><p>{provider.bio}</p>{Boolean(provider.specialties?.length) && <div className="specialty-tags">{provider.specialties?.map(item => <span key={item}>{item}</span>)}</div>}
         <p className="fine">El precio y el alcance se acuerdan mediante una cotización antes de iniciar. YoResuelvo! no procesa el pago.</p></div>
-      <div className="profile-reviews"><h3>Reseñas de servicios completados</h3>{recentReviews.length ? recentReviews.map((review, index) => <article key={`${review.created_at}-${index}`}>
+      <div className="profile-reviews"><h3>{demoMode ? 'Calificaciones de prueba' : 'Reseñas de servicios completados'}</h3>{recentReviews.length ? recentReviews.map((review, index) => <article key={`${review.created_at}-${index}`}>
         <strong>★ {review.rating}/5</strong><p>{review.body}</p><small>{date(review.created_at)}</small></article>)
         : <p className="fine">Las reseñas aparecerán aquí cuando haya servicios completados y evaluados.</p>}</div>
       <div className="profile-dialog-actions"><button type="button" className="button outline" disabled={!provider.available || (!canCompare && !compared)} onClick={onCompare}>{compared ? '✓ En comparación' : 'Comparar'}</button>
-        <button type="button" className="button primary" disabled={!provider.available} onClick={onRequest}>{provider.available ? 'Solicitar cotización' : 'No disponible'}</button></div>
+        <button type="button" className="button primary" disabled={demoMode || !provider.available} onClick={onRequest}>{demoMode ? 'Solo vista de prueba' : provider.available ? 'Solicitar cotización' : 'No disponible'}</button></div>
     </section>
   </div>;
 }

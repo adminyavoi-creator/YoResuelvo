@@ -5,6 +5,8 @@ export type Provider = {
   approval_status: 'pending' | 'approved' | 'rejected' | 'suspended'; available: boolean;
   categories: string[];
   years_experience?: number | null; specialties?: string[]; photo_paths?: string[];
+  /** Approximate coordinates used only by local/test fixtures; never persisted to provider profiles. */
+  demo_location?: { latitude: number; longitude: number };
 };
 export type ServiceRequest = {
   id: string; client_id: string; category_slug: string; municipality_slug: string;
