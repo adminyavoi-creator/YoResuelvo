@@ -1,7 +1,7 @@
 # Plan de implementación · YoResuelvo! con referencia Oficia
 
-**Actualizado:** 17 de octubre de 2026  
-**Estado:** base PWA/Capacitor y Supabase en producción; publicación de Android en Play no iniciada. Package ID y API objetivo están definidos; faltan auditoría de UGC/RLS, pruebas E2E controladas, llave de carga, AAB firmado, pruebas por tracks y elegibilidad de cuenta.
+**Actualizado:** 19 de octubre de 2026  
+**Estado:** PWA de producción y pista interna de Google Play en `0.3.1 (3)`. El mapa OSM de demostración está publicado; el AAB está disponible para verificadores internos. La fase de piloto sigue abierta: faltan revisión focal de seguridad, pruebas E2E en Android físico, soporte humano asignado, datos reales con consentimiento y cierre de la ficha de Play. La auditoría detallada está en [`AUDITORIA_PENDIENTES_2026-10-19.md`](AUDITORIA_PENDIENTES_2026-10-19.md).
 
 ## Objetivo
 
@@ -102,13 +102,13 @@ La ubicación por radio, el mapa, favoritos, adjuntos de solicitud, correo trans
 | 3 · Solicitud y acuerdo | Solicitud, hasta cinco invitaciones, cotizaciones inmutables, aceptación única, ticket y dirección privada implementados. | E2E con dos cuentas reales: enviar, cotizar, comparar, aceptar, cambiar estado, cancelar y revisar que terceros no vean datos privados. Adjuntos siguen pendientes. |
 | 4 · Confianza y soporte | Estados, historial, reseñas verificadas, avisos internos, mensajes, reportes, apelaciones, métricas y base de push están implementados. La cola y la Edge Function FCM se añadieron a Supabase. La política de baja acordada ya está implementada en Supabase producción. | Probar la baja con una cuenta controlada; configurar Firebase, credenciales y consentimiento; verificar entrega, preferencias, bajas de tokens, reintentos y retorno desde push en PWA/Android. |
 | 5 · Piloto controlado | **Pendiente.** Una compilación aprobada no prueba la operación en campo. | Auditoría focal de RPC y RLS; accesibilidad; pruebas Android/iOS/escritorio; respaldo restaurado; política de privacidad, conservación y soporte; contratación piloto con usuarios reales y registro de incidencias. Solo entonces decidir apertura. |
-| 6 · Release Android / Play | Paquete `mx.yoresuelvo.app`, `targetSdk 36`, configuración Firebase Android local y comando `android:aab` presentes; firma release y ficha Play no configuradas | Resolver los bloqueadores de privacidad y contenido UGC, Play App Signing, AAB firmado y validado, internal/closed testing, requisito de acceso a producción si aplica y despliegue gradual. Ruta detallada en [`PLAN_PUBLICACION_GOOGLE_PLAY.md`](PLAN_PUBLICACION_GOOGLE_PLAY.md). |
+| 6 · Release Android / Play | Paquete `mx.yoresuelvo.app`, `targetSdk 36`; release interno `0.3.1 (3)` activo; PWA alineada | Instalar desde Play en un dispositivo físico y verificar Auth/deep links, solicitudes, chat, push y actualización. Completar ficha, privacidad y UGC antes de prueba cerrada o producción. Ruta en [`PLAN_PUBLICACION_GOOGLE_PLAY.md`](PLAN_PUBLICACION_GOOGLE_PLAY.md). |
 
 Los incrementos de comunicación, exportación, apelaciones, métricas y smoke checks que los documentos anteriores llamaban fases 6–13 están aplicados técnicamente. El alcance de eliminación quedó definido y desplegado en Supabase producción: borrar los datos asociados a la cuenta, incluidas conversaciones y reseñas; cancelar solicitudes contratadas cuyo proveedor seleccionado se elimina; y conservar solo el ticket como snapshot de seguridad, desvinculado de la cuenta. La migración `account_deletion_cascades` y la Edge Function `delete-account` v1 están activas. Durante el despliegue no se eliminó ninguna cuenta; falta probar el recorrido completo con una cuenta controlada y publicar/verificar la ruta web desde la app. La PWA instalada abre la landing; Android Capacitor mantiene su entrada en `index.html`. La canalización push está lista en código y base de datos; falta verificar secretos/worker de Supabase, el programador seguro y la entrega en dispositivos. Correo transaccional y adjuntos siguen pendientes; la fase 5 continúa abierta.
 
 ### Controles de confianza para la fase 5
 
-Antes de un piloto se debe revisar la autorización de cada RPC y los permisos de acceso a datos, confirmar qué información es pública o privada, restaurar un respaldo y validar accesibilidad y soporte. La revisión de Supabase del 17 de octubre no encontró FKs sin índice tras añadir índices a tickets y cola push. Siguen pendientes de revisión los avisos del Security Advisor por protección de contraseñas filtradas deshabilitada, `published_reviews()` ejecutable como SECURITY DEFINER sin sesión y funciones SECURITY DEFINER disponibles para usuarios autenticados; revisar sus grants y validaciones internas. Las tablas del esquema privado sin políticas RLS están deliberadamente cerradas. Estos controles no se consideran cerrados por una compilación o por pruebas de dominio; la fase 5 permanece pendiente hasta completar las verificaciones con el equipo y usuarios reales.
+Antes de un piloto se debe revisar la autorización de cada RPC y los permisos de acceso a datos, confirmar qué información es pública o privada, restaurar un respaldo y validar accesibilidad y soporte. El Security Advisor actual marca `pg_net` en el esquema público, `published_reviews()` ejecutable como SECURITY DEFINER por `anon` y 14 funciones SECURITY DEFINER ejecutables por usuarios autenticados; son hallazgos para revisar grants, búsqueda de `search_path` y controles internos, no fallos confirmados. Las tres tablas del esquema privado sin políticas RLS deben confirmarse como intencionales. El Performance Advisor reporta 27 índices sin uso en una base de muy poco tráfico; no retirarlos sin contrastar sus consultas y funciones. Estos controles no se consideran cerrados por una compilación o por pruebas de dominio; la fase 5 permanece pendiente hasta completar las verificaciones con el equipo y usuarios reales.
 
 ### Secuencia inmediata
 
@@ -116,10 +116,10 @@ Antes de un piloto se debe revisar la autorización de cada RPC y los permisos d
 2. Verificar las apps web y Android ya registradas en el Firebase de YoResuelvo; confirmar las variables públicas en Vercel y mantener `google-services.json` local/secret de CI, fuera del Git público. Probar la compilación Gradle y una entrega FCM real.
 3. Mantener la cuenta de servicio Firebase y JWT service role en Vault; nunca exponerlos a la app, GitHub público o variables VITE.
 4. Completar el plan Play: eliminación de cuenta dentro/fuera de la app; reporte/bloqueo y moderación; políticas; ficha; declaraciones; acceso de revisión.
-5. Crear llave de carga fuera de Git, configurar Play App Signing, generar el AAB release y probarlo en el track interno, incluidos Google Auth y FCM.
-6. Ejecutar closed testing. Confirmar tipo/fecha de la cuenta: para cuentas personales nuevas aplican 12 testers optados-in continuos por 14 días antes de solicitar acceso a producción.
-7. Tras habilitar producción, desplegar gradualmente, observar Android Vitals, soporte y métricas y conservar capacidad de pausar el rollout.
-8. Completar la revisión focal RPC/RLS, accesibilidad, respaldo restaurado y soporte; cerrar también la fase 5 de piloto antes de considerar una apertura amplia.
+5. Instalar el AAB `0.3.1 (3)` desde la pista interna y probar Auth, deep links, solicitudes, chat, baja de cuenta, notificaciones FCM y actualización en Android físico.
+6. Cerrar ficha de tienda, capturas reales, privacidad, seguridad de datos y moderación. Confirmar tipo/fecha de la cuenta; si es personal creada después del 13 de noviembre de 2023, cumplir 12 testers optados-in durante 14 días en prueba cerrada antes de solicitar acceso a producción.
+7. Ejecutar un piloto controlado con operador asignado, cuentas de cliente/especialista y oferta real consentida. Restaurar un respaldo y validar accesibilidad antes de ampliar.
+8. Tras habilitar producción y aprobar la revisión, desplegar gradualmente, observar Android Vitals, soporte y métricas y conservar capacidad de pausar el rollout.
 
 ## Decisiones y límites
 
@@ -144,26 +144,27 @@ Antes de un piloto se debe revisar la autorización de cada RPC y los permisos d
 ### Entrega en código
 
 - **Inicio separado de Explorar.** Inicio muestra categorías populares como accesos, carrusel táctil de recomendaciones y perfiles ordenados por promedio de reseñas verificadas. Cuando no hay reseñas se indica “Sin reseñas”; la demanda de cada oficio aún no se mide, por lo que el orden de categorías usa el catálogo editorial. Las promociones no se inventan: queda un espacio reservado para campañas vigentes.
-- **Explorar.** Conserva búsqueda, municipio, oficio, ficha y comparación. Incluye selector Lista/Mapa OSM. El mapa muestra la región y una lista asociada de especialistas con oficio y nota de estrellas; el perfil se abre al tocar cada ficha. La app no almacena coordenadas de profesionales, así que no se muestran pines individuales ni se pretende representar domicilios.
+- **Explorar.** Conserva búsqueda, municipio, oficio, ficha y comparación. Incluye selector Lista/Mapa (OSM). Mapa tiene mosaicos OpenStreetMap, arrastre táctil, zoom y controles de recenter; un marcador lleva al perfil completo. La vista de prueba `/?demo=mapa` muestra cuatro ubicaciones ficticias alrededor del centro de Delicias, fotos de oficio y estrellas simuladas con aviso visible; el modo no usa Supabase ni permite enviar solicitudes. Los perfiles reales sin coordenadas siguen en la lista y no reciben un pin.
 - **Solicitudes.** Filtros por todas, abiertas, contratadas y recibidas; cada tarjeta muestra número de cotizaciones y el total contratado o la menor propuesta recibida. La cotización sigue desglosada y el ticket conserva el acuerdo aceptado. El importe es el acordado entre partes, no un cobro procesado por la plataforma.
 - **Chat.** La pestaña tiene un índice de conversaciones persistidas por trabajo contratado y lleva al chat dentro del ticket. Operaciones aparece arriba con identidad visual propia. En el siguiente incremento se añadieron tablas de soporte separadas, RLS y envío/lectura desde la interfaz; sin un operador asignado, no se puede garantizar respuesta humana.
-- **Iconografía.** Los oficios iniciales usan pictogramas vectoriales de electricidad, plomería, cerrajería, limpieza y mandados; el oficio adicional utiliza herramienta genérica. Mantener trazo uniforme y contraste sobre miel/marfil, con texto visible junto a cada icono.
+- **Iconografía.** Hay pictogramas SVG propios para las doce categorías: electricidad, plomería, cerrajería, limpieza, mandados, refrigeración, albañilería, pintura, carpintería, jardinería, mecánica y soporte técnico. Mantener trazo uniforme, contraste miel/marfil y texto visible junto a cada icono.
 
 ### Próximos incrementos verificables
 
 | Prioridad | Entrega | Dependencia y criterio de salida |
 |---|---|---|
 | P0 | QA de navegación Android/PWA | Verificar cambios repetidos entre cinco pestañas, vuelta desde ficha y ticket, teclado, scroll, gestos, datos lentos y reanudación en dispositivos físicos; sin pantalla congelada ni pérdida de formulario. |
-| P0 | Soporte Operaciones real | Tablas, RLS, historial, envío y aviso a usuario implementados. Falta asignar operador, probar aislamiento con dos cuentas y establecer guardias/tiempos de respuesta. No anunciar atención en tiempo real hasta el E2E. |
-| P1 | Mapa de especialistas | Definir ubicación pública aproximada o zona de atención con consentimiento; coordenadas revisadas y precisión reducida. Consultar solo perfiles aprobados. Mostrar pines agrupados, etiqueta de oficio y promedio con número de reseñas; pin abre ficha. Verificar mapa/lista con filtros iguales, permisos y estado sin ubicación. |
+| P0 | Soporte Operaciones real | Tablas, RLS, historial, envío y aviso a usuario implementados. No hay operador asignado. Falta probar aislamiento con dos cuentas y establecer guardias/tiempos de respuesta. No anunciar atención en tiempo real hasta el E2E. |
+| P0 | QA del mapa OSM | Ruta pública `/?demo=mapa` confirmada en producción. En Android físico, comprobar tiles y atribución OSM, arrastre, zoom, filtros compartidos y apertura de ficha desde pin/tarjeta. Los fixtures llevan aviso; no se escriben en Supabase. |
+| P1 | Ubicaciones reales | Definir zona pública aproximada con consentimiento y precisión reducida. Consultar solo perfiles aprobados; mostrar pin y calificación únicamente con reseñas verificadas. Mantener estado claro si un perfil no comparte ubicación. |
 | P1 | Popularidad y promociones | Agregar métricas agregadas de solicitudes por oficio, ventana temporal y umbral mínimo; campañas con fechas, segmentación, estado, condiciones y revisión de Operaciones. Ordenar Inicio solo con datos válidos y explicar cuando no haya muestra. |
 | P1 | Solicitudes y chats | Búsqueda y orden por fecha/estado; indicadores de no leídos basados en lecturas persistentes; vista de detalles con estados y monto de cada propuesta. Probar aceptación única concurrente y restricciones de acceso. |
 | P2 | Contenido interactivo | CMS o tabla de tarjetas con imagen, texto alternativo, destino interno seguro, vigencia y métricas de apertura. Carrusel manual por tacto y teclado, sin reproducción automática obligatoria. |
 
 ### Secuencia de implementación
 
-1. Cerrar P0 con dos cuentas controladas (cliente y especialista) y una de Operaciones; ejecutar pruebas de permisos, rendimiento móvil y accesibilidad.
-2. Migrar soporte y ubicación con RLS y políticas de privacidad; poblar datos piloto consentidos de Delicias y región.
-3. Conectar mapa a coordenadas aproximadas, campañas a promociones reales y ranking a métricas con muestra suficiente.
-4. Publicar en prueba interna de Play y PWA preview; medir abandono en Inicio→Perfil→Solicitud→Contrato, tasa de respuesta y errores por pantalla, sin registrar chat ni domicilio en analítica.
+1. **Producción PWA y Play interno están alineados en 0.3.1 (3).** La ruta pública del mapa demo está en producción; validar pin a ficha y flujos completos en Android físico antes de cerrar QA de interfaz.
+2. No se requiere migración de Supabase para los fixtures: conservarlos solo en el bundle de demo. Para datos reales, definir consentimiento y política antes de guardar coordenadas aproximadas con RLS.
+3. Conectar campañas y popularidad solo a datos reales y métricas con muestra suficiente.
+4. Durante el piloto controlado, medir abandono en Inicio→Perfil→Solicitud→Contrato, tasa de respuesta y errores por pantalla, sin registrar chat ni domicilio en analítica.
 5. Corregir hallazgos, ampliar prueba cerrada y desplegar gradualmente con rollback listo.
