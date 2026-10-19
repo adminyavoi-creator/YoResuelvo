@@ -32,7 +32,7 @@ La dirección exacta se revela solo al prestador contratado. No publicar teléfo
 | Herramienta | Qué permite | Estado y condición de calidad |
 |---|---|---|
 | Acceso y perfil de cuenta | Entrar con Google o correo, recuperar acceso, conservar la sesión y elegir si se entra a buscar u ofrecer | Flujos de aplicación preparados; OAuth de Google y recuperación deben probarse con cuentas reales y los dominios finales. |
-| Buscador regional | Buscar por tarea, nombre/oficio, municipio y categoría; recorrer tarjetas de especialistas con fotos | Búsqueda de texto, municipio y oficio disponible. La distancia por GPS y el mapa quedan para otra versión y requieren permiso explícito. |
+| Buscador regional | Buscar por tarea, nombre/oficio, municipio y categoría; recorrer tarjetas de especialistas con fotos o ilustraciones | Búsqueda por texto, municipio y oficio disponible. Explorar ya incluye un mapa OSM interactivo con zoom, arrastre y selección de ficha; las ubicaciones reales requieren aproximación pública autorizada. |
 | Comparar especialistas | Seleccionar hasta tres perfiles y revisar oficio, zona, experiencia, disponibilidad declarada, fotos y reseñas | Perfiles, galería de hasta cinco fotos y reseñas vinculadas a trabajos existen en código. No mostrar insignias, estrellas ni disponibilidad no verificadas. |
 | Solicitar cotizaciones | Describir trabajo y horario preferido, e invitar hasta cinco especialistas aprobados | Implementado; faltan pruebas E2E y adjuntos seguros para fotos del problema. No pedir domicilio exacto en la descripción. |
 | Revisar y aceptar propuestas | Comparar alcance, mano de obra, materiales, traslado, exclusiones, horario y vigencia; aceptar una versión | Cotizaciones versionadas y aceptación única implementadas. Cada cambio requiere una versión nueva y consentimiento. |
@@ -64,7 +64,7 @@ La dirección exacta se revela solo al prestador contratado. No publicar teléfo
 
 ### 5.4 Herramientas que no se deben simular
 
-La cercanía exacta, tiempo promedio de respuesta, precios por oficio, insignias de validación y volumen de reseñas se mostrarán únicamente cuando exista una definición, consentimiento y una muestra suficiente. Favoritos, mapa, adjuntos en solicitudes, correo transaccional, confirmaciones de lectura y bloqueo de personas forman parte del backlog; no son condiciones para aparentar que la plataforma ya los ofrece.
+La cercanía exacta, tiempo promedio de respuesta, precios por oficio, insignias de validación y volumen de reseñas se mostrarán únicamente cuando exista una definición, consentimiento y una muestra suficiente. El mapa OSM está implementado; la publicación de ubicaciones reales sigue en el backlog hasta tener consentimiento y precisión reducida. La ruta `/?demo=mapa` usa cuatro perfiles, fotos ilustrativas, coordenadas y calificaciones ficticias de solo lectura; esos fixtures no se guardan en Supabase ni se presentan como oferta real. Favoritos, adjuntos en solicitudes, correo transaccional, confirmaciones de lectura y bloqueo de personas siguen en backlog.
 
 La secuencia técnica agrupa los incrementos de las fases 6–13 descritas abajo en entregas operativas en `PLAN_IMPLEMENTACION.md`; las dos tablas usan niveles distintos de desglose y comparten las mismas puertas de salida.
 
@@ -80,8 +80,8 @@ Solicitud: borrador, abierta, contratada, cancelada, vencida. Cotización: envia
 | 3 Contratación | 2–3 semanas | Solicitudes, cotizaciones versionadas, aceptación atómica, agenda y ticket |
 | 4 Confianza | 2 semanas | Cierre, reseñas verificadas por servicio, reportes y paneles |
 | 5 Piloto | 2 semanas | Pruebas móviles, accesibilidad, respaldo/restauración y piloto acotado |
-| 6 Comunicación | Implementación técnica aplicada | Mensajes privados, avisos internos y canal push listo en código; falta verificar secretos/worker de Supabase, tarea programada y entrega en Android |
-| 7 PWA/Android | PWA y proyecto Android Capacitor aplicados; paquete `mx.yoresuelvo.app`, API objetivo 36 y `google-services.json` disponible localmente | Falta configurar la llave de carga, validar un AAB firmado, compilar con Gradle en entorno Android, probar FCM en dispositivo y completar pista de publicación de Play Console |
+| 6 Comunicación | Mensajes privados, avisos internos, worker push y tarea programada activos | Probar una entrega FCM real, preferencias y enlaces desde un dispositivo; el outbox estaba vacío y solo había un dispositivo registrado al auditar |
+| 7 PWA/Android | `0.3.1 (3)` desplegada en PWA y activa en prueba interna de Play; paquete `mx.yoresuelvo.app`, API objetivo 36 | Instalar desde Play en un Android físico y completar pruebas de Auth/deep link, solicitudes, chat, notificaciones y actualización; no hay release público |
 | 8 Expansión | Implementación técnica aplicada | Cobertura por municipio/oficio con prestadores aprobados; abrir una zona requiere oferta y operación validadas |
 | 9 Oportunidades | Implementación técnica aplicada | Intereses y publicaciones filtrados; el contacto continúa por solicitud/cotización/ticket |
 | 10 Privacidad | Implementación técnica aplicada | Preferencias y exportación de datos propios bajo RLS; eliminación de cuenta requiere política aparte |
@@ -118,8 +118,8 @@ El calendario es relativo al inicio efectivo del desarrollo; no constituye una f
 Los roles anteriores son responsabilidades propuestas, aún sin personas asignadas. Los rangos se validan desde semana 1 y se publican solo con datos suficientes. El calendario adopta el extremo de 12 semanas de la estimación previa; esfuerzos simultáneos pueden reducirlo.
 
 ## 13. Estado verificable de la entrega
-- Disponible: plan, identidad provisional, app React/TS, esquema Supabase y recorridos técnicos de las fases 1–4. Las migraciones y una prueba transaccional de permisos se ejecutaron en el proyecto independiente de YoResuelvo!.
-- Pendiente: pruebas con personas y dispositivos reales, operación de soporte, respaldo restaurado, adjuntos y validación de rangos locales. La mensajería, preferencias, exportación, apelaciones, métricas y smoke checks tienen implementación técnica, pero no reemplazan el piloto controlado ni el proceso humano de soporte. Ver `ESTADO_FASES.md`, `PILOTO_OPERACION.md` y `VERIFICACION_RELEASE.md`.
+- Disponible: app React/TS, backend Supabase, PWA de producción y Android interno `0.3.1 (3)`. La ruta `/?demo=mapa` muestra cuatro perfiles ficticios claramente identificados, es de solo lectura y no inserta datos en Supabase.
+- Pendiente: piloto con prestadores y clientes reales, operador de soporte asignado, prueba E2E en dispositivo físico, restauración de respaldo, revisión focal de seguridad, accesibilidad, capturas reales para la ficha de Play, adjuntos seguros y validación local de rangos. Ver `ESTADO_FASES.md`, `PILOTO_OPERACION.md`, `VERIFICACION_RELEASE.md` y `AUDITORIA_PENDIENTES_2026-10-19.md`.
 - Marca: propuesta visual original pendiente de cotejar con el logotipo maestro de Yavoi! y validar con el titular.
 
 ## 14. Inicio de fase 0 — propuesta 3 Acción
@@ -132,16 +132,18 @@ La adaptación de navegación, perfiles, cotizaciones, paneles y criterios técn
 
 ## 16. Ruta de Android y Google Play
 
-El plan de publicación está en [`PLAN_PUBLICACION_GOOGLE_PLAY.md`](PLAN_PUBLICACION_GOOGLE_PLAY.md). La base técnica ya fija paquete `mx.yoresuelvo.app` y `targetSdkVersion = 36`, vigente desde el 31 de agosto de 2026. El script `npm run android:aab` existe, pero aún falta la firma release con llave de carga de Play App Signing; por eso no se declara listo un AAB instalable desde Play.
+El plan de publicación está en [`PLAN_PUBLICACION_GOOGLE_PLAY.md`](PLAN_PUBLICACION_GOOGLE_PLAY.md). El paquete `mx.yoresuelvo.app` usa `targetSdkVersion = 36`. PWA y pista interna comparten `0.3.1 (3)`; el AAB está activo para verificadores internos. Falta probar la instalación y los flujos en Android físico, completar la ficha de Play y cerrar los requisitos de producto antes de solicitar una pista cerrada o publicación pública.
 
 Antes de subir un bundle, el plan incorpora dos bloqueadores de producto: solicitud de eliminación de cuenta dentro de la app y mediante enlace web; y controles para reportar contenido/usuarios y bloquear personas, además de moderación para los perfiles, fotos, reseñas y chat que YoResuelvo permite publicar. También exige Data safety, política de privacidad, términos, acceso para revisión, clasificación de contenido, pruebas internas/cerradas y monitoreo gradual de producción.
 
 La ruta replica el aprendizaje incremental de Oficia —fundación, flujo completo, confianza, pruebas, lanzamiento gradual y operación— manteniendo identidad, Supabase, Firebase y paquete Android propios. Si la cuenta es personal y se creó después del 13 de noviembre de 2023, Play exige al menos 12 testers optados-in de forma continua durante 14 días antes de solicitar producción; primero se debe confirmar el tipo y antigüedad de la cuenta.
 
-## 17. Actualización ejecutiva · octubre 2026
+## 17. Actualización ejecutiva · 19 de octubre de 2026
 
-La base de producto y los planes anteriores siguen vigentes con el estado verificable de `ESTADO_FASES.md`. La prioridad inmediata es completar una prueba cerrada con cuentas reales de cliente, prestador aprobado y Operaciones. La interfaz móvil ya distingue Inicio, Explorar, Solicitudes, Chat y Perfil. Los doce oficios del catálogo inicial tienen pictograma propio; la selección lleva a un filtro de Explorar.
+**Versiones:** PWA de producción y pista interna de Google Play comparten `0.3.1` / `versionCode 3`. El release Android está activo y disponible para verificadores internos; esto no equivale a publicación pública. El mapa OSM de `/?demo=mapa` presenta cuatro perfiles, ubicaciones e imágenes ilustrativas y calificaciones ficticias con aviso visible. Sus datos son locales al demo y no representan oferta real.
 
-**Ruta de salida por hitos:** (1) sincronizar y revisar el código de esta iteración, (2) asignar operador mediante proceso administrativo, (3) aprobar voluntarios reales con consentimiento de imágenes y zona de atención, (4) completar dos servicios controlados de solicitud a reseña y soporte, (5) probar dispositivo Android/PWA, OAuth, push y eliminación, (6) terminar recursos de Play Console y AAB firmado, (7) prueba interna/cerrada y publicación gradual. Cada hito exige evidencia de permisos, estados y errores; una compilación no sustituye una operación real.
+**Estado de producto:** la ruta de demostración y el despliegue están verificados. La base real aún no contiene especialistas aprobados, solicitudes ni trabajos; el piloto no ha comenzado. El worker push y su programación existen, pero falta comprobar una entrega a un dispositivo real. Vea [`ESTADO_FASES.md`](ESTADO_FASES.md) y la auditoría [`AUDITORIA_PENDIENTES_2026-10-19.md`](AUDITORIA_PENDIENTES_2026-10-19.md).
 
-**Dependencias de producto:** promociones requieren campañas aprobadas con vigencia; el ranking de “más solicitados” requiere conteos reales y umbral de muestra; mapa con marcadores requiere ubicación pública aproximada y autorización; la atención humana requiere un operador asignado; capturas de Play deben representar pantallas reales del producto. No publicar valores simulados como evidencia de desempeño.
+**Siguiente secuencia:** (1) probar `0.3.1` instalado desde Play en un Android físico, (2) cerrar la revisión de seguridad y realizar un E2E con cuentas de prueba de cliente y especialista, (3) asignar operador y ejecutar el piloto controlado, (4) cargar capturas reales y completar la ficha y declaraciones de Play, (5) confirmar si aplica el requisito de prueba cerrada y completar sus condiciones, (6) solicitar revisión pública solo cuando producto, soporte y políticas estén listos.
+
+**Mejoras de producto:** fichas reales y pines solo con perfiles aprobados y ubicación aproximada consentida; popularidad/promociones solo con métricas y muestra suficiente; completar reporte/bloqueo general, adjuntos privados, correo transaccional y confirmaciones de lectura según prioridad de la auditoría. La demostración no se usa como evidencia de oferta, desempeño ni reputación.
