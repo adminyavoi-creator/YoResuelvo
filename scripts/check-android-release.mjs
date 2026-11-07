@@ -1,0 +1,15 @@
+import {loadEnv} from 'vite';
+import {readFile,access} from 'node:fs/promises';
+import {resolve} from 'node:path';
+const project=new URL('../',import.meta.url);
+const env={...loadEnv('production',project.pathname,'VITE_'),...process.env};
+const fail=message=>{throw new Error(message);};
+if(!env.VITE_SUPABASE_URL||!env.VITE_SUPABASE_PUBLISHABLE_KEY)fail('Falta la configuración de Supabase del proyecto local. Se detuvo la compilación para evitar un AAB sin conexión.');
+if(new URL(env.VITE_SUPABASE_URL).hostname!=='oilpmedqwwbbzbtzwmzl.supabase.co')fail('La configuración no apunta al proyecto YoResuelvo vigente.');
+const services=JSON.parse(await readFile(new URL('../android/app/google-services.json',import.meta.url),'utf8'));
+if(services.project_info?.project_id!=='yoresuelvo-2822f'||!services.client?.some(c=>c.client_info?.android_client_info?.package_name==='mx.yoresuelvo.app'))fail('Revisa google-services.json: debe corresponder a YoResuelvo y mx.yoresuelvo.app.');
+const signing=await readFile(new URL('../android/key.properties',import.meta.url),'utf8');
+const properties=Object.fromEntries(signing.split(/\r?\n/).filter(line=>line.trim()&&!line.trim().startsWith('#')).map(line=>{const i=line.indexOf('=');return [line.slice(0,i).trim(),line.slice(i+1).trim()];}));
+for(const field of ['storeFile','storePassword','keyAlias','keyPassword'])if(!properties[field])fail('La configuración de firma local está incompleta.');
+await access(resolve(new URL('../android/',import.meta.url).pathname,properties.storeFile));
+console.log('Configuración de YoResuelvo y firma local presentes. No se imprimieron credenciales.');

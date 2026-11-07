@@ -1,3 +1,12 @@
+import {ServiceRequestDialog,ServiceCases} from './ServiceCases';
+import {ExpertVisibility,VisibilityOperations,SponsoredExperts} from './Visibility';
+import ScheduleAgreement from './ScheduleAgreement';
+import WorkingHours from './WorkingHours';
+import {profileRole} from './lib/profile';
+import AppNavigation, {type AppPage} from './AppNavigation';
+import CategoryPicker from './CategoryPicker';
+import Agenda from './Agenda';
+import Onboarding from './Onboarding';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { savedAuthIntent, saveAuthIntent, signInWithGoogle, type AuthIntent } from './lib/auth';
@@ -6,16 +15,17 @@ import {
   db, configured, catalog, workspace, saveProvider, createRequest, submitQuote,
   acceptQuote, pendingProviders, reviewProvider, saveAddress, setJobStatus,
   createReview, markNotificationRead, pendingReports, reviewQueue, moderateReview, sendJobMessage,
-  saveNotificationPreferences, exportMyData, fileReportAppeal, pendingAppeals, reviewReportAppeal, operationalMetrics, uploadProviderPhoto, providerPhotoUrl, supportInbox, sendSupportMessage
+  saveNotificationPreferences, exportMyData, fileReportAppeal, pendingAppeals, reviewReportAppeal, operationalMetrics, uploadProviderPhoto, providerPhotoUrl, supportInbox, sendSupportMessage,
+  operationsQueue, operationHistory, reviewOperationItem, providerIntakes, createProviderIntake, updateProviderIntake, operationsPromotions, createPromotion, setPromotionStatus
 } from './lib/api';
 import { demoCategories, demoMunicipalities, demoProviders, demoReviews } from './lib/demo';
 import type {
   Category, Municipality, Provider, ServiceRequest, Quote, Job, Ticket, PendingProvider,
   Address, Review, OwnReview, ModerationReview, Notification, Report, JobEvent, JobMessage,
-  NotificationPreferences, Appeal, PendingAppeal, OperationalMetrics, SupportMessage, SupportThread
+  NotificationPreferences, Appeal, PendingAppeal, OperationalMetrics, SupportMessage, SupportThread, OperationQueueItem, OperationDecision, ProviderIntake, Promotion
 } from './lib/types';
 
-type Page = 'inicio' | 'explorar' | 'solicitudes' | 'chat' | 'ofrecer' | 'tickets' | 'moderacion' | 'cuenta';
+type Page = AppPage;
 const money = (n: number) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n);
 const demoMapMode = new URLSearchParams(window.location.search).get('demo') === 'mapa';
 const date = (v: string | null) => v
@@ -23,7 +33,12 @@ const date = (v: string | null) => v
   : 'Por acordar';
 const label = (items: { slug: string; name: string }[], slug: string) => items.find(i => i.slug === slug)?.name ?? slug;
 const serviceImage = (slug: string) => slug.includes('plom') ? '/images/plomeria.jpg' : slug.includes('electric') ? '/images/electricidad.jpg' : '/images/reparaciones.jpg';
-const providerImage = (p: Provider) => p.photo_paths?.[0] ? providerPhotoUrl(p.photo_paths[0]) : serviceImage(p.categories[0] ?? '');
+const providerImage = (p: Provider) => (p.profile_photo_path || p.photo_paths?.[0]) ? providerPhotoUrl((p.profile_photo_path || p.photo_paths![0])) : serviceImage(p.categories[0] ?? '');
+function ExpertPhoto({provider,cover=false}:{provider:Provider;cover?:boolean}) {
+ const source=provider.id.startsWith('demo-')?`/images/expert-${provider.id.slice(5)}.png?v=13`:cover&&provider.photo_paths?.[0]?providerPhotoUrl(provider.photo_paths[0]):providerImage(provider);
+ return <img className="expert-photo-image" src={source} alt={cover?`Servicio de ${provider.display_name}`:`Retrato de ${provider.display_name}`} loading="lazy" onError={e=>{e.currentTarget.onerror=null;e.currentTarget.src=serviceImage(provider.categories[0]||'');}}/>;
+}
+
 const errText = (error: unknown) => error instanceof Error ? error.message : 'No se pudo completar la operación.';
 const requestedPushPage = (): Page | null => {
   const screen = new URLSearchParams(window.location.search).get('screen');
@@ -32,8 +47,14 @@ const requestedPushPage = (): Page | null => {
 };
 
 export default function App() {
-  const [page, setPage] = useState<Page>(() => demoMapMode ? 'explorar' : requestedPushPage() ?? 'inicio');
-  const [exploreView, setExploreView] = useState<'lista' | 'mapa'>(() => demoMapMode ? 'mapa' : 'lista');
+  const [page, setPage] = useState<Page>(() => demoMapMode ? 'explorar' : 'cuenta');
+  const [exploreView, setExploreView] = useState<'tarjetas' | 'lista' | 'mapa'>(() => demoMapMode ? 'mapa' : 'tarjetas');
+  const [availabilityFilter,setAvailabilityFilter]=useState('');
+  const [minimumRating,setMinimumRating]=useState('');
+  const [sortOrder,setSortOrder]=useState('recomendados');
+  const [profileEditing,setProfileEditing]=useState(false);
+  const [demoBookingProvider,setDemoBookingProvider]=useState<Provider[]|null>(null);
+  const [catalogLoading,setCatalogLoading]=useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -64,6 +85,11 @@ export default function App() {
   const [appeals, setAppeals] = useState<Appeal[]>([]);
   const [appealsQueue, setAppealsQueue] = useState<PendingAppeal[]>([]);
   const [metrics, setMetrics] = useState<OperationalMetrics | null>(null);
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [operationItems, setOperationItems] = useState<OperationQueueItem[]>([]);
+  const [operationDecisions, setOperationDecisions] = useState<OperationDecision[]>([]);
+  const [intakes, setIntakes] = useState<ProviderIntake[]>([]);
+  const [operationsPromos, setOperationsPromos] = useState<Promotion[]>([]);
   const [search, setSearch] = useState('');
   const [city, setCity] = useState('');
   const [category, setCategory] = useState(() => new URLSearchParams(window.location.search).get('categoria') ?? '');
@@ -77,14 +103,37 @@ export default function App() {
   const [recovery, setRecovery] = useState(false);
   const [authIntent, setAuthIntent] = useState<AuthIntent>(() => savedAuthIntent());
 
+  const expertMode = profileRole(user?.user_metadata?.profile_role ?? authIntent) === 'prestador';
+  async function switchProfile(intent: AuthIntent) {
+    if (!db || !user) return;
+    setBusy(true); setError('');
+    try {
+      const needsDetails = intent === 'cliente' && !user.user_metadata?.customer_profile;
+      const result = await db.auth.updateUser({data:{profile_role:intent, ...(needsDetails ? {onboarding_complete:false} : {})}});
+      if (result.error) throw result.error;
+      setUser(result.data.user); setAuthIntent(intent); saveAuthIntent(intent);
+      setCompared([]); setRequestOpen(false); setProfilePreview(null); setProfileEditing(false); setPage('inicio');
+    } catch (error) { setError(errText(error)); }
+    finally { setBusy(false); }
+  }
   async function refresh(currentUser: User | null = user) {
     if (!configured || demoMapMode) return;
-    const c = await catalog();
+    if (!currentUser) {
+      setRequests([]); setQuotes([]); setJobs([]); setTickets([]);
+      setOwnProvider(null); setStaffRole(null); setPending([]); setReports([]); setModerationReviews([]);
+      setAddresses([]); setOwnReviews([]); setNotifications([]); setEvents([]); setMessages([]);
+      setSupportThreads([]); setSupportMessages([]); setSelectedSupportThread('');
+      setPreferences(null); setAppeals([]); setAppealsQueue([]); setMetrics(null); setPromotions([]);
+      setOperationItems([]); setOperationDecisions([]); setIntakes([]); setOperationsPromos([]);
+      return;
+    }
+    setCatalogLoading(true);
+    let c; try { c=await catalog(); } finally {setCatalogLoading(false);}
     setCategories(c.categories);
     setMunicipalities(c.municipalities);
     setProviders(c.providers);
     setReviews(c.reviews);
-    if (currentUser) {
+    setPromotions(c.promotions);
       const w = await workspace(currentUser.id);
       setRequests(w.requests);
       setQuotes(w.quotes);
@@ -94,25 +143,20 @@ export default function App() {
       setStaffRole(w.staffRole);
       setAddresses(w.addresses); setOwnReviews(w.ownReviews);
       setNotifications(w.notifications); setEvents(w.events); setMessages(w.messages);
-      const support = await supportInbox(currentUser.id, Boolean(w.staffRole));
+      const support = await supportInbox(currentUser.id, Boolean(w.staffRole)).catch(() => ({threads: [], messages: []}));
       setSupportThreads(support.threads); setSupportMessages(support.messages);
       setPreferences(w.preferences); setAppeals(w.appeals);
       if (w.staffRole) {
-        const [p, r, reviewItems, appealItems, operational] = await Promise.all([
-          pendingProviders(), pendingReports(), reviewQueue(), pendingAppeals(), operationalMetrics()
+        const [p, r, reviewItems, appealItems, operational, queue, history, providerIntakeRows, promotionRows] = await Promise.all([
+          pendingProviders(), pendingReports(), reviewQueue(), pendingAppeals(), operationalMetrics(), operationsQueue(), operationHistory(), providerIntakes(), operationsPromotions()
         ]);
         setPending(p); setReports(r); setModerationReviews(reviewItems);
-        setAppealsQueue(appealItems); setMetrics(operational);
+        setAppealsQueue(appealItems); setMetrics(operational); setOperationItems(queue); setOperationDecisions(history);
+        setIntakes(providerIntakeRows); setOperationsPromos(promotionRows);
       } else {
         setPending([]); setReports([]); setModerationReviews([]); setAppealsQueue([]); setMetrics(null);
+        setOperationItems([]); setOperationDecisions([]); setIntakes([]); setOperationsPromos([]);
       }
-    } else {
-      setRequests([]); setQuotes([]); setJobs([]); setTickets([]);
-      setOwnProvider(null); setStaffRole(null); setPending([]); setReports([]); setModerationReviews([]);
-      setAddresses([]); setOwnReviews([]); setNotifications([]); setEvents([]); setMessages([]);
-      setSupportThreads([]); setSupportMessages([]); setSelectedSupportThread('');
-      setPreferences(null); setAppeals([]); setAppealsQueue([]); setMetrics(null);
-    }
   }
   useEffect(() => {
     let active = true;
@@ -125,11 +169,10 @@ export default function App() {
           callbackUrl.searchParams.delete('error_description'); callbackUrl.searchParams.delete('error');
           window.history.replaceState({}, '', `${callbackUrl.pathname}${callbackUrl.search}${callbackUrl.hash}`);
         }
-        const currentUser = db && !demoMapMode ? (await db.auth.getUser()).data.user : null;
+        const currentUser = db && !demoMapMode ? (await db.auth.getSession()).data.session?.user ?? null : null;
         if (!active) return;
         setUser(currentUser);
-        setPage(demoMapMode ? 'explorar' : requestedPushPage() ?? (currentUser && savedAuthIntent() === 'prestador' ? 'ofrecer' : 'inicio'));
-        await refresh(currentUser);
+        setPage(demoMapMode ? 'explorar' : currentUser ? requestedPushPage() ?? ('inicio') : 'cuenta');
       } catch (e) { if (active) setError(errText(e)); }
       finally { if (active) setReady(true); }
     }
@@ -137,8 +180,8 @@ export default function App() {
     const subscription = demoMapMode ? undefined : db?.auth.onAuthStateChange((event, session) => {
       if (active) {
         setUser(session?.user ?? null);
-        if (event === 'SIGNED_IN') setPage(savedAuthIntent() === 'prestador' ? 'ofrecer' : 'inicio');
-        if (event === 'SIGNED_OUT') setPage('inicio');
+        if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {setProfileEditing(false);setPage('inicio');}
+        if (event === 'SIGNED_OUT') setPage('cuenta');
         if (event === 'PASSWORD_RECOVERY') { setRecovery(true); setPage('cuenta'); }
       }
     }).data.subscription;
@@ -149,18 +192,19 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
-    if (!ready || !configured) return;
+    if (!ready || !configured || (!user && !demoMapMode)) return;
     void refresh(user).catch(e => setError(errText(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [ready, user?.id]);
   useEffect(() => {
-    if (page !== 'chat' || !user || !configured) return;
+    if (!['chat','moderacion'].includes(page) || !user || !configured) return;
     const update = () => { if (document.visibilityState === 'visible') void supportInbox(user.id, Boolean(staffRole)).then(data => { setSupportThreads(data.threads); setSupportMessages(data.messages); }).catch(() => {}); };
     window.addEventListener('focus', update);
     const timer = window.setInterval(update, 20000);
     return () => { window.removeEventListener('focus', update); window.clearInterval(timer); };
   }, [page, user?.id, staffRole]);
 
+  useEffect(()=>{const update=()=>{if(user)void refresh(user).catch(e=>setError(errText(e)));};window.addEventListener('yoresuelvo-service-updated',update);return()=>window.removeEventListener('yoresuelvo-service-updated',update);},[user?.id]);
   async function authAction(task: () => Promise<unknown>, success: string, next?: Page): Promise<boolean> {
     setBusy(true); setMessage(''); setError('');
     try {
@@ -169,7 +213,7 @@ export default function App() {
       setUser(current);
       await refresh(current);
       setMessage(success);
-      if (next) setPage(next);
+      if (next) setPage(current ? next : 'cuenta');
       return true;
     } catch (e) { setError(errText(e)); return false; }
     finally { setBusy(false); }
@@ -181,74 +225,80 @@ export default function App() {
     catch (e) { setError(errText(e)); }
     finally { setBusy(false); }
   }
+  useEffect(()=>{if(!user)return;const update=()=>{void refresh(user).catch(e=>setError(errText(e)));};window.addEventListener('yoresuelvo-demo-updated',update);return()=>window.removeEventListener('yoresuelvo-demo-updated',update);},[user?.id]);
   function action(task: () => Promise<unknown>, success: string, next?: Page): Promise<void> {
     return authAction(task, success, next).then(() => undefined);
   }
   function navigate(next: Page) {
-    setPage(next); setMessage(''); setError('');
+    if (user && !demoMapMode && ((expertMode && next === 'explorar') || (!expertMode && next === 'ofrecer'))) next = 'inicio';
+    setPage(!demoMapMode && !user ? 'cuenta' : next); setMessage(''); setError('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   const filtered = useMemo(() => providers.filter(p => {
+    const scores=reviews.filter(r=>r.provider_id===p.id);
+    const average=scores.length?scores.reduce((a,r)=>a+r.rating,0)/scores.length:0;
+    if(minimumRating&&average<Number(minimumRating))return false;
+    if(availabilityFilter==='now'&&(!p.available||p.availability==='soon'||p.availability==='unavailable'))return false;
+    if(availabilityFilter==='soon'&&(!p.available||p.availability!=='soon'))return false;
+    if(availabilityFilter==='unavailable'&&p.available&&p.availability!=='unavailable')return false;
     const q = search.trim().toLocaleLowerCase('es');
     return (!city || p.municipality_slug === city) && (!category || p.categories.includes(category))
       && (!q || (p.display_name + ' ' + p.bio + ' ' + p.categories.map(c => label(categories, c)).join(' '))
         .toLocaleLowerCase('es').includes(q));
-  }), [providers, city, category, search, categories]);
+  }).sort((a,b)=>{const score=(p:Provider)=>{const rr=reviews.filter(r=>r.provider_id===p.id);return rr.length?rr.reduce((sum,r)=>sum+r.rating,0)/rr.length:0;};return sortOrder==='rating'?score(b)-score(a):sortOrder==='name'?a.display_name.localeCompare(b.display_name,'es'):Number(b.available)-Number(a.available);}), [providers, city, category, search, categories,reviews,minimumRating,availabilityFilter,sortOrder]);
   const rated = useMemo(() => [...providers].sort((a, b) => {
     const score = (p: Provider) => { const items = reviews.filter(r => r.provider_id === p.id); return items.length ? items.reduce((sum, r) => sum + r.rating, 0) / items.length : 0; };
     return score(b) - score(a);
   }), [providers, reviews]);
   function startRequest(selected: Provider[]) {
+
     if (demoMapMode) { setMessage('Esta vista usa perfiles ficticios y no envía solicitudes.'); return; }
     if (!configured) { window.location.href = '/demo/#catalogo'; return; }
     if (!user) { setAuthIntent('cliente'); navigate('cuenta'); return; }
-    const first = selected[0];
-    if (!first) return;
-    setRequestCategory(category || first.categories[0] || '');
-    setRequestCity(city || first.municipality_slug);
-    setRequestIds(selected.map(p => p.id));
-    setRequestOpen(true);
-    setTimeout(() => document.getElementById('request-form')?.scrollIntoView({ behavior: 'smooth' }), 0);
+    if (expertMode) {setMessage('Cambia a tu perfil de cliente para solicitar un servicio.');setPage('cuenta');return;}
+    if(!selected.length)return;
+    setDemoBookingProvider(selected.slice(0,3));
+
   }
 
-  return <div className="app-shell">
-    <header className="header wrap">
+  if (!ready) return <div className="app-shell auth-loading"><p role="status">Cargando tu cuenta…</p></div>;
+
+  return <div className={`app-shell${!user && !demoMapMode ? ' auth-only' : ''}`}>
+    {(user || demoMapMode) && <header className="header wrap">
       <button type="button" className="brand" onClick={() => navigate(demoMapMode ? 'explorar' : 'inicio')} aria-label="YoResuelvo!, inicio">
         <img src="/brand/yoresuelvo-icon-512.png" alt="" /><span>YoResuelvo<span className="brand-mark">!</span><small>DELICIAS Y LA REGIÓN</small></span>
       </button>
-      {demoMapMode ? <nav aria-label="Navegación principal"><button type="button" aria-current="page" onClick={() => navigate('explorar')}>Mapa</button></nav> : <nav aria-label="Navegación principal">
-        <button type="button" aria-current={page === 'explorar' ? 'page' : undefined} onClick={() => navigate('explorar')}>Explorar</button>
-        <button type="button" aria-current={page === 'solicitudes' ? 'page' : undefined} onClick={() => navigate('solicitudes')}>Solicitudes</button>
-        <button type="button" aria-current={page === 'ofrecer' ? 'page' : undefined} onClick={() => navigate('ofrecer')}>Ofrecer</button>
-        <button type="button" aria-current={page === 'tickets' ? 'page' : undefined} onClick={() => navigate('tickets')}>Tickets</button>
-        {staffRole && <button type="button" aria-current={page === 'moderacion' ? 'page' : undefined} onClick={() => navigate('moderacion')}>Revisión</button>}
-      </nav>}
+      {!demoMapMode && <><AppNavigation page={page} expert={expertMode} onNavigate={navigate}/><button type="button" className="header-action messages-action" onClick={()=>navigate('chat')} aria-label="Mensajes">✉</button>{staffRole && <button className="text-button" onClick={()=>navigate('moderacion')}>Operaciones</button>}</>}
       {!demoMapMode && <button type="button" className="header-action" onClick={() => navigate('cuenta')} aria-label={user ? 'Mi cuenta y notificaciones' : 'Ingresar'}>
         {user ? '♧' : '↗'}{notifications.some(item => !item.read_at) && <span className="notification-dot" />}
       </button>}
-    </header>
+    </header>}
     <main className="wrap">
-      {demoMapMode && <div className="demo-banner" role="status"><span>●</span> Modo de prueba del mapa · 4 perfiles, imágenes ilustrativas y calificaciones ficticias. No envía solicitudes. <a href="/">Salir de la prueba</a></div>}
+      {user && (!user.user_metadata?.onboarding_complete || profileEditing) && !demoMapMode && <Onboarding key={`${user.id}:${profileEditing}`} onClose={profileEditing?()=>setProfileEditing(false):undefined} user={user} categories={categories} onDone={(updated,offering)=>{setUser(updated);setProfileEditing(false);setAuthIntent(offering?'prestador':'cliente');setPage(offering?'ofrecer':'inicio');}}/>}
+      {demoMapMode && <div className="demo-banner" role="status"><span>●</span> Demostración · 10 perfiles ilustrativos. <a href="/">Salir de la prueba</a></div>}
       {!configured && !demoMapMode && <div className="demo-banner" role="status"><span>●</span> Vista de diseño · perfiles ficticios. <a href="/demo/">Abrir demo interactiva</a></div>}
-      {!ready && <p role="status">Cargando…</p>}
+      {!ready && <div className="app-loading-mark" role="status" aria-label="Cargando YoResuelvo!"><img src="/brand/yoresuelvo-icon-512.png" alt="" width="160" height="160"/><span>Cargando…</span></div>}
       {error && <p className="alert error" role="alert">{error}</p>}
       {message && <p className="alert success" role="status">{message}</p>}
-      {page === 'inicio' && <section className="section home-page">
-        <p className="eyebrow">DELICIAS Y LA REGIÓN</p><h1>¿Qué necesitas resolver hoy?</h1>
+      {page === 'inicio' && user && expertMode && <section className="section expert-home"><p className="eyebrow">Hola, {user.user_metadata?.display_name || 'experto'}</p><h1>Tu trabajo, en un solo lugar.</h1><div className="expert-shortcuts"><button className="panel" onClick={()=>navigate('solicitudes')}><strong>{requests.filter(r=>r.client_id!==user.id&&r.status==='open').length}</strong><span>Solicitudes recibidas</span></button><button className="panel" onClick={()=>navigate('tickets')}><strong>{jobs.filter(j=>j.provider_id===user.id&&!['completed','cancelled'].includes(j.status)).length}</strong><span>Servicios activos</span></button><button className="panel" onClick={()=>navigate('ofrecer')}><strong>＋</strong><span>Perfil y servicios</span></button></div>{ownProvider ? <button className="button primary" onClick={()=>navigate('agenda')}>Ver mi agenda</button> : <div className="panel"><h2>Completa tu perfil profesional</h2><button className="button primary" onClick={()=>navigate('ofrecer')}>Agregar mis servicios</button></div>}</section>}
+      {page === 'inicio' && user && !expertMode && <section className="section home-page">
+        <p className="eyebrow">Hola, {user.user_metadata?.display_name || user.user_metadata?.full_name || 'qué gusto verte'}</p><h1>¿Qué necesitas resolver hoy?</h1>
+        <SponsoredExperts providers={providers} municipality="" category="" onOpen={setProfilePreview}/>
         <button type="button" className="home-search" onClick={() => navigate('explorar')}>⌕ &nbsp; Busca un servicio o especialista <span>→</span></button>
-        <div className="browse-heading"><h2>Servicios populares</h2><button type="button" onClick={() => navigate('explorar')}>Ver todos →</button></div>
-        <div className="category-grid">{categories.map(item => <button key={item.slug} type="button" className="category-tile" onClick={() => { setCategory(item.slug); navigate('explorar'); }}><span className="category-icon"><CategoryIcon slug={item.slug} /></span>{item.name}</button>)}</div>
+        <div className="problem-shortcuts" aria-label="Buscar por problema">{[{text:'Tengo una fuga',slug:'plomeria'},{text:'No hay luz',slug:'electricidad'},{text:'Necesito limpieza',slug:'limpieza'},{text:'Mi aire no enfría',slug:'refrigeracion'}].map(item=><button key={item.slug} onClick={()=>{setCategory(item.slug);navigate('explorar');}}>{item.text} →</button>)}</div><div className="browse-heading"><h2>Servicios populares</h2><button type="button" onClick={() => navigate('explorar')}>Ver todos →</button></div>
+        <div className="category-grid service-category-rail">{categories.map(item => <button key={item.slug} type="button" className="category-tile" onClick={() => { setCategory(item.slug); navigate('explorar'); }}><span className="category-icon"><CategoryIcon slug={item.slug} /></span>{item.name}</button>)}</div>
         <div className="featured-strip" aria-label="Consejos y promociones"><div className="featured-track">{[
           { image: '/images/electricidad.jpg', title: 'Describe tu tarea con detalle', detail: 'Recibe cotizaciones más claras', slug: 'electricidad' },
           { image: '/images/plomeria.jpg', title: 'Compara el alcance completo', detail: 'Revisa materiales y traslado', slug: 'plomeria' },
           { image: '/images/reparaciones.jpg', title: 'Califica al terminar', detail: 'Ayuda a tu comunidad', slug: '' }
         ].map(slide => <button key={slide.title} type="button" className="featured-slide" onClick={() => { setCategory(slide.slug); navigate('explorar'); }}><img src={slide.image} alt="" /><span className="featured-overlay"><small>CONSEJO YORESUELVO!</small><strong>{slide.title}</strong><span>{slide.detail} ↗</span></span></button>)}</div></div>
-        <div className="browse-heading"><h2>Mejor calificados</h2><button type="button" onClick={() => navigate('explorar')}>Explorar →</button></div>
-        {rated.length ? <div className="home-providers">{rated.slice(0, 4).map(p => { const items = reviews.filter(r => r.provider_id === p.id); return <button key={p.id} type="button" className="home-provider panel" onClick={() => setProfilePreview(p)}><img src={providerImage(p)} alt="" /><span><strong>{p.display_name}</strong><small>{label(categories, p.categories[0] ?? '')} · {label(municipalities, p.municipality_slug)}</small><small>{items.length ? `★ ${(items.reduce((sum, r) => sum + r.rating, 0) / items.length).toFixed(1)} · ${items.length} reseñas` : '☆ Sin reseñas todavía'}</small></span><b>→</b></button>; })}</div> : <p className="empty">Pronto encontrarás especialistas aprobados aquí.</p>}
-        <p className="fine">Las promociones aparecerán cuando estén vigentes y verificadas.</p>
+        <div className="browse-heading"><h2>Expertos en la región</h2><button type="button" onClick={() => navigate('explorar')}>Explorar →</button></div>
+        {rated.length ? <div className="home-providers">{[...rated.filter(p=>!p.id.startsWith('demo-')).slice(0,4),...rated.filter(p=>p.id.startsWith('demo-'))].map(p => { const items = reviews.filter(r => r.provider_id === p.id); return <button key={p.id} type="button" className="home-provider panel" onClick={() => setProfilePreview(p)}><ExpertPhoto provider={p} /><span><strong>{p.display_name}</strong><small>{label(categories, p.categories[0] ?? '')} · {label(municipalities, p.municipality_slug)}</small><small>{items.length ? `★ ${(items.reduce((sum, r) => sum + r.rating, 0) / items.length).toFixed(1)} · ${items.length} ${p.id.startsWith('demo-')?'valoración':'reseñas'}` : '☆ Sin reseñas todavía'}</small></span><b>→</b></button>; })}</div> : <p className="empty">Pronto encontrarás especialistas aprobados aquí.</p>}
+        {promotions.length ? <section className="operation-promotions-public" aria-label="Promociones vigentes"><div className="browse-heading"><h2>Promociones vigentes</h2></div>{promotions.map(promotion => <article key={promotion.id} className="promotion-public"><small>{promotion.audience === 'all' ? 'PARA LA COMUNIDAD' : promotion.audience === 'providers' ? 'PARA ESPECIALISTAS' : 'PARA CLIENTES'}</small><strong>{promotion.title}</strong><p>{promotion.body}</p></article>)}</section> : null}
       </section>}
-      {page === 'explorar' && <>
+      {page === 'explorar' && (user || demoMapMode) && <>
         <section className="discovery" id="catalogo">
+          {!demoMapMode && <SponsoredExperts providers={filtered} municipality={city} category={category} onOpen={setProfilePreview}/>}
           <div className="discovery-intro"><div><span className="location-kicker">⌖ {city ? label(municipalities, city) : 'Delicias y la región'}</span><h1>¿Qué necesitas <em>resolver hoy?</em></h1></div><button type="button" className="intro-avatar" onClick={() => navigate('cuenta')} aria-label="Abrir mi perfil">{user?.user_metadata?.avatar_url ? <img src={user.user_metadata.avatar_url as string} alt="" /> : '☺'}</button></div>
           <div className="search-row"><label className="search-box"><span aria-hidden="true">⌕</span><span className="sr-only">Buscar servicio o persona</span><input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Busca un servicio o persona" /></label><button type="button" className="filter-toggle" aria-expanded={showFilters} aria-controls="discovery-filters" onClick={() => setShowFilters(value => !value)} aria-label="Filtros">☷</button></div>
           <div id="discovery-filters" className={`quick-filters${showFilters ? ' open' : ''}`}>
@@ -262,32 +312,33 @@ export default function App() {
           </div></div>}
           <div className="browse-heading"><h2>Explora servicios</h2><button type="button" onClick={() => { setCategory(''); setSearch(''); }}>Ver todos →</button></div>
           <div className="category-shortcuts" aria-label="Explorar por categoría">
-            <div className="category-grid">{categories.map(item => <button key={item.slug} type="button"
+            <div className="category-grid service-category-rail">{categories.map(item => <button key={item.slug} type="button"
               className={`category-tile${category === item.slug ? ' active' : ''}`} aria-pressed={category === item.slug}
               onClick={() => { setCategory(current => current === item.slug ? '' : item.slug); setCompared([]); }}>
               <span className="category-icon" aria-hidden="true"><CategoryIcon slug={item.slug} /></span><span>{item.name}</span>
             </button>)}</div>
           </div>
-          <div className="browse-heading pros-heading"><div><h2>Personas que resuelven</h2><small>{filtered.length} {filtered.length === 1 ? 'perfil' : 'perfiles'} en tu búsqueda</small></div><button type="button" onClick={() => navigate('ofrecer')}>Ofrecer servicios ↗</button></div>
-          <div className="view-switch" role="group" aria-label="Vista de especialistas">{!demoMapMode && <button type="button" aria-pressed={exploreView === 'lista'} onClick={() => setExploreView('lista')}>☷ Lista</button>}<button type="button" aria-pressed={exploreView === 'mapa'} onClick={() => setExploreView('mapa')}>⌖ Mapa</button></div>
-          {exploreView === 'mapa' && <ProviderMap providers={filtered} reviews={reviews} categories={categories} municipalities={municipalities} demoMode={demoMapMode || !configured} onOpenProfile={setProfilePreview} />}
-          {exploreView === 'lista' && <>
-          {filtered.length ? <div className="cards provider-cards">{filtered.map(p => { const ratings = reviews.filter(r => r.provider_id === p.id); return <article className="card provider-card" key={p.id}>
-            <button type="button" className="provider-photo" onClick={() => setProfilePreview(p)} aria-label={`Conocer a ${p.display_name}`}><img src={providerImage(p)} alt={p.photo_paths?.length ? `Trabajo de ${p.display_name}` : ''} loading="lazy" />{!p.photo_paths?.length && <span>Foto ilustrativa del servicio</span>}</button>
-            <div className="provider-info"><div className="provider-top"><span className="service-pill">{label(categories, p.categories[0] ?? '')}</span><span className={`availability-dot${p.available ? '' : ' paused'}`}>{p.available ? '● Disponible' : '● Pausado'}</span></div>
+          <div className="browse-heading pros-heading"><div><h2>Personas que resuelven</h2><small>{filtered.length} {filtered.length === 1 ? 'perfil' : 'perfiles'} en tu búsqueda</small></div><button type="button" onClick={() => navigate('cuenta')}>Cambiar perfil ↗</button></div>
+          <div className="discovery-options"><label>Disponibilidad<select value={availabilityFilter} onChange={e=>setAvailabilityFilter(e.target.value)}><option value="">Cualquier horario</option><option value="now">Disponible ahora</option><option value="soon">Disponible pronto</option><option value="unavailable">No disponible</option></select></label><label>Calificación<select value={minimumRating} onChange={e=>setMinimumRating(e.target.value)}><option value="">Todas</option><option value="4">4 estrellas o más</option><option value="4.5">4.5 estrellas o más</option></select></label><label>Ordenar<select value={sortOrder} onChange={e=>setSortOrder(e.target.value)}><option value="recomendados">Disponibilidad</option><option value="rating">Mejor calificación</option><option value="name">Nombre</option></select></label></div>{catalogLoading&&<p role="status">Buscando expertos…</p>}
+          <div className="view-switch" role="group" aria-label="Vista de especialistas">{<button type="button" aria-pressed={exploreView === 'tarjetas'} onClick={() => setExploreView('tarjetas')}>▣ Tarjetas</button>}{<button type="button" aria-pressed={exploreView === 'lista'} onClick={() => setExploreView('lista')}>☷ Lista</button>}<button type="button" aria-pressed={exploreView === 'mapa'} onClick={() => setExploreView('mapa')}>⌖ Mapa</button></div>
+          {exploreView === 'mapa' && <ProviderMap providers={filtered} reviews={reviews} categories={categories} municipalities={municipalities} demoMode={demoMapMode || !configured || filtered.every(p=>p.id.startsWith('demo-'))} onOpenProfile={setProfilePreview} />}
+          {exploreView !== 'mapa' && <>
+          {filtered.length ? <div className={`cards provider-cards ${exploreView === 'tarjetas' ? 'swipe-cards' : 'compact-list'}`}>{filtered.map(p => { const ratings = reviews.filter(r => r.provider_id === p.id); return <article className="card provider-card" key={p.id}>
+            <button type="button" className="provider-photo" onClick={() => setProfilePreview(p)} aria-label={`Conocer a ${p.display_name}`}><ExpertPhoto provider={p} />{!p.photo_paths?.length && <span>Foto ilustrativa del servicio</span>}</button>
+            <div className="provider-info"><div className="provider-top"><span className="service-pill">{label(categories, p.categories[0] ?? '')}{p.id.startsWith('demo-')?' · Ilustrativo':''}</span><span className={`availability-dot${p.available ? '' : ' paused'}`}>{(!p.available || p.availability==='unavailable') ? '● No disponible hoy' : p.availability === 'soon' ? '● Disponible pronto' : '● Disponible ahora'}</span></div>
             <h3>{p.display_name}</h3><p className="provider-location">⌖ {label(municipalities, p.municipality_slug)} · {city === p.municipality_slug ? 'Tu municipio' : 'En la región'}</p>
-            <p className="provider-bio">{p.bio}</p><div className="provider-stats"><span>{ratings.length ? `★ ${(ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length).toFixed(1)} · ${ratings.length} reseñas` : '☆ Sin reseñas aún'}</span><span>{p.years_experience ? `${p.years_experience} años de experiencia` : 'Experiencia en perfil'}</span></div>
+            <p className="provider-bio">{p.bio}</p><div className="provider-stats"><span>{ratings.length ? `★ ${(ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length).toFixed(1)} · ${ratings.length} ${p.id.startsWith('demo-')?'valoración':'reseñas'}` : '☆ Sin reseñas aún'}</span><span>{p.years_experience ? `${p.years_experience} años de experiencia` : 'Experiencia en perfil'}</span></div>
             <div className="card-actions"><button type="button" className="button outline" aria-pressed={compared.includes(p.id)}
               disabled={!p.available || (compared.length >= 3 && !compared.includes(p.id))}
               onClick={() => setCompared(ids => ids.includes(p.id) ? ids.filter(id => id !== p.id) : [...ids, p.id])}>
               {compared.includes(p.id) ? '✓ Elegido' : '＋ Comparar'}
             </button><button type="button" className="button primary" onClick={() => setProfilePreview(p)}>Ver perfil →</button></div></div>
-          </article>; })}</div> : <div className="empty"><h3>Sin perfiles para estos filtros</h3><p>Prueba otro municipio o servicio.</p><button className="button outline" type="button" onClick={() => { setSearch(''); setCity(''); setCategory(''); }}>Limpiar filtros</button></div>}
+          </article>; })}</div> : <div className="empty"><h3>Sin perfiles para estos filtros</h3><p>Prueba otro municipio o servicio.</p><button className="button outline" type="button" onClick={() => { setSearch(''); setCity(''); setCategory('');setAvailabilityFilter('');setMinimumRating(''); }}>Limpiar filtros</button></div>}
           </>}
           {compared.length > 0 && <section className="compare" aria-label="Comparación de prestadores"><div className="section-head"><h3>Compara hasta tres</h3><button className="text-button" onClick={() => setCompared([])}>Limpiar</button></div><div className="compare-grid">{compared.map(id => {
             const p = providers.find(item => item.id === id);
             return p && <div key={id}><strong>{p.display_name}</strong><span>{label(municipalities, p.municipality_slug)}</span><span>{p.categories.map(c => label(categories, c)).join(', ')}</span><p>{p.bio}</p></div>;
-          })}</div><p className="fine">Compara alcance y materiales cuando recibas cotizaciones. Aquí no se muestran calificaciones ni precios inventados.</p><button type="button" className="button primary" onClick={() => startRequest(compared.map(id => providers.find(p => p.id === id)).filter((p): p is Provider => Boolean(p)))}>Solicitar cotización</button></section>}
+          })}</div><p className="fine">Envía el mismo requerimiento a los expertos elegidos y compara sus propuestas antes de aceptar.</p><button type="button" className="button primary" onClick={() => startRequest(compared.map(id => providers.find(p => p.id === id)).filter((p): p is Provider => Boolean(p)))}>Solicitar cotización</button></section>}
           {requestOpen && <RequestForm key={requestIds.join(',')} providers={providers} categories={categories} municipalities={municipalities}
             initialCategory={requestCategory} initialCity={requestCity} initialIds={requestIds} busy={busy}
             onCancel={() => setRequestOpen(false)} onSubmit={async input => {
@@ -295,10 +346,11 @@ export default function App() {
             }} />}
         </section>
       </>}
-      {page === 'cuenta' && <Account user={user} notifications={notifications} preferences={preferences}
-        authIntent={authIntent} onAuthIntentChange={intent => { setAuthIntent(intent); saveAuthIntent(intent); }}
+      {page === 'cuenta' && user && <button className="button outline profile-edit-action" onClick={()=>setProfileEditing(true)}>Editar mis datos</button>}
+      {page === 'cuenta' && <Account operationsRole={staffRole} onOperations={()=>navigate('moderacion')} user={user} notifications={notifications} preferences={preferences}
+        authIntent={expertMode ? 'prestador' : 'cliente'} onAuthIntentChange={intent => { setAuthIntent(intent); saveAuthIntent(intent); }}
         onGoogleSignIn={googleSignIn}
-        onChooseMode={intent => { setAuthIntent(intent); saveAuthIntent(intent); navigate(intent === 'prestador' ? 'ofrecer' : 'explorar'); }}
+        onChooseMode={intent => { void switchProfile(intent); }}
         onPushOpen={data => {
           const screen = data.screen;
           const allowed: Page[] = ['inicio','explorar','solicitudes','chat','ofrecer','tickets','cuenta'];
@@ -306,8 +358,8 @@ export default function App() {
         }}
         onPushForeground={item => setMessage(`${item.title}: ${item.body}`)}
         onRead={id => action(() => markNotificationRead(id), 'Aviso marcado como leído.', 'cuenta')}
-        onSavePreferences={inApp => action(() => saveNotificationPreferences(user!.id, inApp), 'Preferencias actualizadas.', 'cuenta')}
-        onDisableAllPush={() => action(() => disableAllPushForUser(user!.id), 'Se pausaron los avisos push en todos tus dispositivos.', 'cuenta')}
+        onSavePreferences={async inApp => { await saveNotificationPreferences(user!.id, inApp); await refresh(); }}
+        onDisableAllPush={async () => { await disableAllPushForUser(user!.id); await refresh(); }}
         onExport={() => action(async () => {
           const content = await exportMyData(user!.id, user!.email ?? undefined);
           const blob = new Blob([JSON.stringify(content, null, 2)], { type: 'application/json' });
@@ -317,10 +369,16 @@ export default function App() {
           document.body.append(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
         }, 'Tu archivo de datos está listo para guardar.', 'cuenta')}
         recovery={recovery} onRecovered={() => setRecovery(false)} busy={busy} onAction={authAction} />}
+      {page === 'agenda' && user && <section className="section"><p className="eyebrow">TUS PRÓXIMOS SERVICIOS</p><h1>{expertMode?'Mi agenda':'Servicios agendados'}</h1>{expertMode ? ownProvider ? <><WorkingHours providerId={user.id}/><Agenda providerId={user.id} jobs={jobs} onChange={()=>void refresh(user)}/></> : <div className="empty"><p>Agrega tus servicios para comenzar.</p><button className="button primary" onClick={()=>navigate('ofrecer')}>Completar perfil</button></div> : <><div className="request-list">{jobs.filter(j=>j.client_id===user.id&&!['cancelled','completed'].includes(j.status)).map(j=><button className="panel agenda-client-card" key={j.id} onClick={()=>navigate('tickets')}><strong>{requests.find(r=>r.id===j.request_id)?.title || 'Servicio'}</strong><span>{date(j.scheduled_at)}{j.scheduled_end_at?` — ${date(j.scheduled_end_at)}`:''}</span><small>Ver ticket →</small></button>)}</div>{!jobs.some(j=>j.client_id===user.id&&!['cancelled','completed'].includes(j.status))&&<div className="empty"><h2>Tu próxima solución empieza aquí</h2><button className="button primary" onClick={()=>navigate('explorar')}>Buscar expertos</button></div>}</>}</section>}
+      {page === 'agenda' && user && <ServiceCases userId={user.id} mode={expertMode?'expert':'client'}/>}
+      {page === 'solicitudes' && user && <ServiceCases userId={user.id} mode={expertMode?'expert':'client'}/>}
+      {page === 'tickets' && user && <ServiceCases userId={user.id} mode={expertMode?'expert':'client'}/>}
+      {page === 'moderacion' && user && staffRole==='admin' && <ServiceCases userId={user.id} mode="operations"/>}
+      {page === 'ofrecer' && user && ownProvider && <ExpertVisibility key={user.id} userId={user.id}/>}
       {page === 'ofrecer' && <ProviderPage user={user} current={ownProvider} categories={categories} municipalities={municipalities}
         configured={configured} busy={busy} onSignIn={() => { setAuthIntent('prestador'); navigate('cuenta'); }}
         onSave={input => action(() => saveProvider(input), 'Perfil guardado. La aprobación depende de una revisión.', 'ofrecer')} />}
-      {page === 'solicitudes' && <RequestsPage user={user} requests={requests} quotes={quotes} jobs={jobs} providers={providers}
+      {page === 'solicitudes' && <RequestsPage user={user} requests={requests.filter(r => expertMode ? r.client_id !== user?.id : r.client_id === user?.id)} quotes={quotes} jobs={jobs} providers={providers}
         categories={categories} municipalities={municipalities} busy={busy} configured={configured} onSignIn={() => navigate('cuenta')}
         onExplore={() => navigate('explorar')}
         onQuote={input => action(() => submitQuote(input), 'Cotización enviada; el cliente ya puede revisarla.', 'solicitudes')}
@@ -332,58 +390,86 @@ export default function App() {
         </div>
         {!user ? <button type="button" className="button primary" onClick={() => navigate('cuenta')}>Ingresar para ver conversaciones</button> : jobs.length ? <div className="chat-index">{jobs.map(job => { const request = requests.find(r => r.id === job.request_id); const thread = messages.filter(m => m.job_id === job.id); return <button type="button" className="panel chat-index-item" key={job.id} onClick={() => { navigate('tickets'); window.setTimeout(() => document.getElementById(`job-${job.id}`)?.scrollIntoView({ behavior: 'smooth' }), 80); }}><span><strong>{request?.title ?? 'Servicio contratado'}</strong><small>{job.client_id === user.id ? 'Especialista' : 'Cliente'} · {thread.length} {thread.length === 1 ? 'mensaje' : 'mensajes'}</small><small>{thread.at(-1)?.body ?? 'Abre el ticket para comenzar la conversación.'}</small></span><b>→</b></button>; })}</div> : <p className="empty">Las conversaciones privadas aparecen después de contratar un servicio.</p>}
       </section>}
-      {page === 'tickets' && <TicketsPage user={user} jobs={jobs} tickets={tickets} requests={requests} addresses={addresses} ownReviews={ownReviews} events={events} messages={messages} appeals={appeals} busy={busy}
+      {page === 'tickets' && <TicketsPage user={user} jobs={jobs.filter(j=>expertMode ? j.provider_id===user?.id : j.client_id===user?.id)} tickets={tickets.filter(t=>expertMode ? t.provider_id===user?.id : t.client_id===user?.id)} requests={requests} addresses={addresses} ownReviews={ownReviews} events={events} messages={messages} appeals={appeals} busy={busy}
         configured={configured} onSignIn={() => navigate('cuenta')}
         onAddress={(requestId, address, exists) => action(() => saveAddress(requestId, user!.id, address, exists), 'Dirección guardada para las partes del servicio.', 'tickets')}
         onStatus={(jobId, next, reason) => action(() => setJobStatus(jobId, next, reason), 'Estado actualizado y registrado.', 'tickets')}
         onReview={(jobId, rating, body) => action(() => createReview(jobId, rating, body), 'Reseña publicada para este trabajo.', 'tickets')}
         onMessage={(jobId, body) => action(() => sendJobMessage(jobId, body), 'Mensaje enviado de forma privada.', 'tickets')}
         onAppeal={(reportId, reason) => action(() => fileReportAppeal(reportId, reason), 'Apelación registrada para revisión.', 'tickets')} />}
-      {page === 'moderacion' && staffRole && <section className="section"><p className="eyebrow">OPERACIÓN</p><h1>Perfiles por revisar</h1>
-        {metrics && <OperationalMetricsPanel metrics={metrics} municipalities={municipalities} categories={categories} />}
-        <h2>Apelaciones</h2>
-        {appealsQueue.length ? <div className="request-list">{appealsQueue.map(appeal => <AppealReviewCard key={appeal.id} appeal={appeal} busy={busy}
-          onReview={(status, response) => action(() => reviewReportAppeal(appeal.id, status, response), 'Decisión de apelación registrada.', 'moderacion')} />)}</div>
-          : <p className="empty">No hay apelaciones pendientes.</p>}
-        {pending.length ? <div className="cards">{pending.map(p => <ReviewCard key={p.id} provider={p} busy={busy} onReview={(status, reason) => action(
-          () => reviewProvider(p.id, status, reason), 'Decisión registrada con motivo.', 'moderacion'
-        )} />)}</div> : <p className="empty">No hay perfiles pendientes.</p>}
-        <h2>Incidencias abiertas</h2>
-        {reports.length ? <div className="request-list">{reports.map(report => <ReportCard key={report.id} report={report} busy={busy}
-          onResolve={(next, reason) => action(() => setJobStatus(report.job_id, next, reason), 'Incidencia resuelta con motivo auditado.', 'moderacion')} />)}</div> : <p className="empty">No hay incidencias abiertas.</p>}
-        <h2>Reseñas</h2>
-        {moderationReviews.length ? <div className="request-list">{moderationReviews.map(review => <ModerationReviewCard key={review.job_id} review={review} busy={busy}
-          onModerate={(published, reason) => action(() => moderateReview(review.job_id, published, reason), 'Reseña revisada con motivo auditado.', 'moderacion')} />)}</div> : <p className="empty">Aún no hay reseñas.</p>}
-      </section>}
-      {profilePreview && <ProviderProfileDialog provider={profilePreview} categories={categories} municipalities={municipalities} demoMode={demoMapMode || !configured}
+      {page === 'moderacion' && staffRole && <OperationsCenter adminId={user!.id} adminName={String(user!.user_metadata?.display_name || user!.user_metadata?.full_name || 'Administración')} isAdmin={staffRole==='admin'} metrics={metrics} municipalities={municipalities} categories={categories}
+        queue={operationItems} decisions={operationDecisions} pendingProviders={pending} intakes={intakes} promotions={operationsPromos}
+        appeals={appealsQueue} reports={reports} reviews={moderationReviews} threads={supportThreads} supportMessages={supportMessages}
+        selectedThread={selectedSupportThread} busy={busy} onSelectThread={setSelectedSupportThread}
+        onReviewOperation={(itemType, entityId, status, reason) => action(() => reviewOperationItem(itemType, entityId, status, reason), 'Autorización registrada y notificada.', 'moderacion')}
+        onReviewProvider={(id, status, reason) => action(() => reviewProvider(id, status, reason), 'Decisión registrada con motivo.', 'moderacion')}
+        onCreateIntake={input => authAction(() => createProviderIntake(input), 'Expediente de proveedor registrado.', 'moderacion')}
+        onUpdateIntake={(id, status) => action(() => updateProviderIntake(id, status), 'Estado del expediente actualizado.', 'moderacion')}
+        onCreatePromotion={input => authAction(() => createPromotion(input), 'Promoción guardada como borrador.', 'moderacion')}
+        onPromotionStatus={(id, status) => action(() => setPromotionStatus(id, status), 'Estado de promoción actualizado.', 'moderacion')}
+        onSendSupport={(id, body) => authAction(() => sendSupportMessage(id, body), 'Respuesta guardada.', 'moderacion')}
+        onAppeal={(id, status, response) => action(() => reviewReportAppeal(id, status, response), 'Decisión de apelación registrada.', 'moderacion')}
+        onResolveReport={(jobId, next, reason) => action(() => setJobStatus(jobId, next, reason), 'Incidencia resuelta con motivo auditado.', 'moderacion')}
+        onModerateReview={(jobId, published, reason) => action(() => moderateReview(jobId, published, reason), 'Reseña revisada con motivo auditado.', 'moderacion')} />}
+      {demoBookingProvider && user && <ServiceRequestDialog userId={user.id} providers={demoBookingProvider} onClose={()=>setDemoBookingProvider(null)} onSaved={()=>{setDemoBookingProvider(null);setPage('solicitudes');setMessage('');window.dispatchEvent(new Event('yoresuelvo-demo-updated'));}}/>}
+      {profilePreview && <ProviderProfileDialog provider={profilePreview} categories={categories} municipalities={municipalities} demoMode={profilePreview.id.startsWith('demo-') || demoMapMode || !configured} allowDemoBooking={Boolean(user && !expertMode && !demoMapMode)}
         reviews={reviews.filter(review => review.provider_id === profilePreview.id)} compared={compared.includes(profilePreview.id)}
         canCompare={compared.length < 3 || compared.includes(profilePreview.id)} onClose={() => setProfilePreview(null)}
         onCompare={() => { setCompared(ids => ids.includes(profilePreview.id) ? ids : [...ids, profilePreview.id]); setProfilePreview(null); }}
         onRequest={() => { const selected = profilePreview; setProfilePreview(null); startRequest([selected]); }} />}
     </main>
-    <nav className="mobile-tabbar" aria-label="Navegación rápida">
-      {demoMapMode ? <button type="button" aria-current="page" onClick={() => navigate('explorar')}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5 8 4l8 3 5-2.5v13L16 20l-8-3-5 2.5v-13Z" /><path d="M8 4v13m8-10v13" /></svg><span>Mapa</span>
-      </button> : <>
-      <button type="button" aria-current={page === 'inicio' ? 'page' : undefined} onClick={() => navigate('inicio')}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" /></svg><span>Inicio</span>
-      </button>
-      <button type="button" aria-current={page === 'explorar' ? 'page' : undefined} onClick={() => navigate('explorar')}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></svg><span>Explorar</span>
-      </button>
-      <button type="button" aria-current={page === 'solicitudes' ? 'page' : undefined} onClick={() => navigate('solicitudes')}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12a2 2 0 0 1 2 2v16l-4-2-4 2-4-2-4 2V5a2 2 0 0 1 2-2Z" /><path d="M8 9h8m-8 4h6" /></svg><span>Solicitudes</span>
-      </button>
-      <button type="button" aria-current={page === 'chat' ? 'page' : undefined} onClick={() => navigate('chat')}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v13H8l-5 4V5Z" /><path d="M7 10h10m-10 4h7" /></svg><span>Chat</span>
-      </button>
-      <button type="button" aria-current={page === 'cuenta' ? 'page' : undefined} onClick={() => navigate('cuenta')}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg><span>Perfil</span>
-      </button>
-      </>}
-    </nav>
     <footer className="wrap app-footer"><span>YoResuelvo! · Delicias y la región</span><small>Los tickets registran acuerdos de servicio; no son facturas ni comprobantes de pago.</small><nav className="policy-links" aria-label="Privacidad y ayuda"><a href="/privacy.html">Aviso de privacidad</a><a href="/terms.html">Términos de uso</a><a href="/delete-account.html">Eliminar cuenta</a></nav></footer>
   </div>;
+}
+
+function OperationsCenter({ adminId,adminName,isAdmin,metrics, municipalities, categories, queue, decisions, pendingProviders, intakes, promotions, appeals, reports, reviews, threads, supportMessages, selectedThread, busy, onSelectThread, onReviewOperation, onReviewProvider, onCreateIntake, onUpdateIntake, onCreatePromotion, onPromotionStatus, onSendSupport, onAppeal, onResolveReport, onModerateReview }: {
+  adminId:string;adminName:string;isAdmin:boolean;
+  metrics: OperationalMetrics | null; municipalities: Municipality[]; categories: Category[]; queue: OperationQueueItem[];
+  decisions: OperationDecision[];
+  pendingProviders: PendingProvider[]; intakes: ProviderIntake[]; promotions: Promotion[]; appeals: PendingAppeal[];
+  reports: Report[]; reviews: ModerationReview[]; threads: SupportThread[]; supportMessages: SupportMessage[];
+  selectedThread: string; busy: boolean; onSelectThread: (id: string) => void;
+  onReviewOperation: (type: 'request' | 'job', id: string, status: 'approved' | 'rejected', reason: string) => Promise<void>;
+  onReviewProvider: (id: string, status: 'approved' | 'rejected' | 'suspended', reason: string) => Promise<void>;
+  onCreateIntake: (input: { displayName: string; municipalitySlug: string; categorySlugs: string[]; notes: string }) => Promise<boolean>;
+  onUpdateIntake: (id: string, status: 'invited' | 'archived') => Promise<void>;
+  onCreatePromotion: (input: { title: string; body: string; audience: Promotion['audience']; startsAt: string | null; endsAt: string | null }) => Promise<boolean>;
+  onPromotionStatus: (id: string, status: 'draft' | 'active' | 'paused') => Promise<void>;
+  onSendSupport: (id: string, body: string) => Promise<boolean>;
+  onAppeal: (id: string, status: 'accepted' | 'rejected', response: string) => Promise<void>;
+  onResolveReport: (jobId: string, next: string, reason: string) => Promise<void>;
+  onModerateReview: (jobId: string, published: boolean, reason: string) => Promise<void>;
+}) {
+  const [section, setSection] = useState<'resumen' | 'autorizaciones' | 'proveedores' | 'mensajes' | 'promociones' | 'calidad' | 'visibilidad'>('resumen');
+  return <section className="section operations-center"><p className="eyebrow">CENTRO DE OPERACIONES</p><h1>Operaciones</h1>
+
+    <div className="operation-tabs" role="tablist" aria-label="Áreas de Operaciones">
+      {([['resumen','Resumen'],['autorizaciones',`Autorizaciones (${queue.length})`],['proveedores',`Proveedores (${pendingProviders.length + intakes.length})`],['mensajes',`Mensajes (${threads.length})`],['promociones','Promociones'],['calidad','Calidad']] as const).map(([id, title]) => <button key={id} type="button" role="tab" aria-selected={section === id} onClick={() => setSection(id)}>{title}</button>)}
+    </div>
+    {isAdmin && <button className="button outline" type="button" aria-pressed={section==='visibilidad'} onClick={()=>setSection('visibilidad')}>Planes y seguimiento</button>}
+    {section==='visibilidad' && isAdmin && <VisibilityOperations userId={adminId} name={adminName} onReview={async(id,status,reason)=>{await reviewProvider(id,status,reason);}}/>}
+    {section === 'resumen' && <>{metrics && <OperationalMetricsPanel metrics={metrics} municipalities={municipalities} categories={categories} />}<div className="operation-quick-grid"><article><strong>{queue.length}</strong><span>autorizaciones pendientes</span></article><article><strong>{pendingProviders.length}</strong><span>perfiles por aprobar</span></article><article><strong>{threads.length}</strong><span>conversaciones de soporte</span></article></div><h2>Historial de autorizaciones</h2>{decisions.length ? <div className="request-list">{decisions.slice(0,8).map((decision,index) => <article className="panel operation-history" key={`${decision.entity_type}-${decision.entity_id}-${decision.created_at}-${index}`}><div><strong>{decision.entity_type === 'request' ? 'Solicitud' : 'Servicio contratado'} · {decision.status === 'approved' ? 'Autorizado' : 'Rechazado'}</strong><small>{decision.entity_id.slice(0,8)} · {date(decision.created_at)} · operador {decision.reviewer_id.slice(0,8)}</small><p>{decision.reason}</p></div></article>)}</div> : <p className="empty">Las decisiones de este flujo aparecerán aquí.</p>}</>}
+    {section === 'autorizaciones' && <div className="request-list"><h2>Solicitudes y servicios por verificar</h2>{queue.length ? queue.map(item => <OperationDecisionCard key={`${item.item_type}-${item.entity_id}`} item={item} categories={categories} municipalities={municipalities} busy={busy} onReview={onReviewOperation} />) : <p className="empty">No hay autorizaciones pendientes.</p>}</div>}
+    {section === 'proveedores' && <><ProviderIntakeForm categories={categories} municipalities={municipalities} busy={busy} onSave={onCreateIntake} /><h2>Expedientes de especialistas</h2><p className="fine">El expediente no publica un perfil ni almacena datos de contacto. La persona completa su alta desde la app y después pasa por la aprobación normal.</p>{intakes.length ? <div className="request-list">{intakes.map(item => <article className="panel operation-card" key={item.id}><div><strong>{item.display_name}</strong><p>{label(municipalities,item.municipality_slug)} · {item.category_slugs.map(slug => label(categories,slug)).join(', ')}</p>{item.notes && <p>{item.notes}</p>}<small>Estado: {item.status === 'registered' ? 'registrado' : item.status === 'invited' ? 'en seguimiento' : 'archivado'} · {date(item.created_at)}</small></div><div className="card-actions">{item.status === 'registered' && <button type="button" className="button primary" disabled={busy} onClick={() => void onUpdateIntake(item.id,'invited')}>Marcar en seguimiento</button>}{item.status !== 'archived' && <button type="button" className="button outline" disabled={busy} onClick={() => void onUpdateIntake(item.id,'archived')}>Archivar</button>}</div></article>)}</div> : <p className="empty">Aún no hay expedientes.</p>}<h2>Perfiles enviados por especialistas</h2>{pendingProviders.length ? <div className="cards">{pendingProviders.map(provider => <ReviewCard key={provider.id} provider={provider} busy={busy} onReview={(status, reason) => onReviewProvider(provider.id,status,reason)} />)}</div> : <p className="empty">No hay perfiles pendientes.</p>}</>}
+    {section === 'mensajes' && <div className="operations-support"><h2>Comunicación con usuarios y proveedores</h2>{threads.length ? <div className="support-queue">{threads.map(thread => <button type="button" key={thread.user_id} className={selectedThread === thread.user_id ? 'selected' : ''} onClick={() => onSelectThread(thread.user_id)}>{thread.user_id.slice(0,8)} · {date(thread.updated_at)}</button>)}</div> : <p className="empty">No hay consultas todavía.</p>}{selectedThread && <SupportConversation userId={selectedThread} messages={supportMessages.filter(message => message.user_id === selectedThread)} busy={busy} onSend={body => onSendSupport(selectedThread,body)} />}</div>}
+    {section === 'promociones' && <><PromotionForm busy={busy} onSave={onCreatePromotion} /><h2>Promociones gestionadas</h2>{promotions.length ? <div className="request-list">{promotions.map(promotion => <article key={promotion.id} className="panel operation-card"><div><strong>{promotion.title}</strong><p>{promotion.body}</p><small>{promotion.audience} · {promotion.status ?? 'draft'} · {promotion.starts_at ? `desde ${date(promotion.starts_at)}` : 'sin fecha de inicio'}{promotion.ends_at ? ` · hasta ${date(promotion.ends_at)}` : ''}</small></div><div className="card-actions">{promotion.status !== 'active' && <button type="button" className="button primary" disabled={busy} onClick={() => void onPromotionStatus(promotion.id,'active')}>Activar</button>}{promotion.status !== 'paused' && <button type="button" className="button outline" disabled={busy} onClick={() => void onPromotionStatus(promotion.id,'paused')}>Pausar</button>}{promotion.status !== 'draft' && <button type="button" className="text-button" disabled={busy} onClick={() => void onPromotionStatus(promotion.id,'draft')}>Borrador</button>}</div></article>)}</div> : <p className="empty">Todavía no hay promociones.</p>}</>}
+    {section === 'calidad' && <><h2>Apelaciones</h2>{appeals.length ? <div className="request-list">{appeals.map(appeal => <AppealReviewCard key={appeal.id} appeal={appeal} busy={busy} onReview={(status,response) => onAppeal(appeal.id,status,response)} />)}</div> : <p className="empty">No hay apelaciones pendientes.</p>}<h2>Incidencias abiertas</h2>{reports.length ? <div className="request-list">{reports.map(report => <ReportCard key={report.id} report={report} busy={busy} onResolve={(next,reason) => onResolveReport(report.job_id,next,reason)} />)}</div> : <p className="empty">No hay incidencias abiertas.</p>}<h2>Reseñas</h2>{reviews.length ? <div className="request-list">{reviews.map(review => <ModerationReviewCard key={review.job_id} review={review} busy={busy} onModerate={(published,reason) => onModerateReview(review.job_id,published,reason)} />)}</div> : <p className="empty">Aún no hay reseñas.</p>}</>}
+  </section>;
+}
+
+function OperationDecisionCard({ item, categories, municipalities, busy, onReview }: { item: OperationQueueItem; categories: Category[]; municipalities: Municipality[]; busy: boolean; onReview: (type: 'request' | 'job', id: string, status: 'approved' | 'rejected', reason: string) => Promise<void> }) {
+  const [reason, setReason] = useState('');
+  return <article className="panel operation-card"><div><span className="service-pill">{item.item_type === 'request' ? 'Solicitud' : 'Servicio contratado'}</span><h3>{item.title}</h3><p>{item.detail}</p><small>{label(categories,item.category_slug)} · {label(municipalities,item.municipality_slug)} · {date(item.created_at)}</small></div><label>Motivo de decisión<textarea required minLength={10} maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} /></label><div className="card-actions"><button type="button" className="button outline" disabled={busy || reason.trim().length < 10} onClick={() => void onReview(item.item_type,item.entity_id,'rejected',reason)}>Rechazar</button><button type="button" className="button primary" disabled={busy || reason.trim().length < 10} onClick={() => void onReview(item.item_type,item.entity_id,'approved',reason)}>Autorizar</button></div></article>;
+}
+
+function ProviderIntakeForm({ categories, municipalities, busy, onSave }: { categories: Category[]; municipalities: Municipality[]; busy: boolean; onSave: (input: { displayName: string; municipalitySlug: string; categorySlugs: string[]; notes: string }) => Promise<boolean> }) {
+  const [displayName, setDisplayName] = useState(''); const [municipalitySlug, setMunicipalitySlug] = useState(municipalities[0]?.slug ?? ''); const [categorySlugs, setCategorySlugs] = useState<string[]>([]); const [notes, setNotes] = useState('');
+  return <form className="form operation-form" onSubmit={event => { event.preventDefault(); void onSave({ displayName, municipalitySlug, categorySlugs, notes }).then(saved => { if (saved) { setDisplayName(''); setCategorySlugs([]); setNotes(''); } }); }}><h2>Registrar expediente de proveedor</h2><label>Nombre o razón de referencia<input required minLength={3} maxLength={80} value={displayName} onChange={event => setDisplayName(event.target.value)} /></label><label>Municipio<select value={municipalitySlug} onChange={event => setMunicipalitySlug(event.target.value)}>{municipalities.map(item => <option key={item.slug} value={item.slug}>{item.name}</option>)}</select></label><fieldset><legend>Oficios (1 a 5)</legend><div className="check-grid">{categories.map(item => <label key={item.slug}><input type="checkbox" checked={categorySlugs.includes(item.slug)} onChange={() => setCategorySlugs(current => current.includes(item.slug) ? current.filter(slug => slug !== item.slug) : current.length < 5 ? [...current,item.slug] : current)} />{item.name}</label>)}</div></fieldset><label>Notas internas<textarea maxLength={1000} value={notes} onChange={event => setNotes(event.target.value)} /></label><button type="submit" className="button primary" disabled={busy || displayName.trim().length < 3 || !municipalitySlug || !categorySlugs.length}>Crear expediente</button></form>;
+}
+
+function PromotionForm({ busy, onSave }: { busy: boolean; onSave: (input: { title: string; body: string; audience: Promotion['audience']; startsAt: string | null; endsAt: string | null }) => Promise<boolean> }) {
+  const [title, setTitle] = useState(''); const [body, setBody] = useState(''); const [audience, setAudience] = useState<Promotion['audience']>('all'); const [startsAt, setStartsAt] = useState(''); const [endsAt, setEndsAt] = useState('');
+  return <form className="form operation-form" onSubmit={event => { event.preventDefault(); void onSave({ title, body, audience, startsAt: startsAt ? new Date(startsAt).toISOString() : null, endsAt: endsAt ? new Date(endsAt).toISOString() : null }).then(saved => { if (saved) { setTitle(''); setBody(''); setStartsAt(''); setEndsAt(''); } }); }}><h2>Crear promoción</h2><label>Título<input required minLength={6} maxLength={100} value={title} onChange={event => setTitle(event.target.value)} /></label><label>Mensaje<textarea required minLength={10} maxLength={300} value={body} onChange={event => setBody(event.target.value)} /></label><label>Audiencia<select value={audience} onChange={event => setAudience(event.target.value as Promotion['audience'])}><option value="all">Toda la comunidad</option><option value="clients">Clientes</option><option value="providers">Especialistas</option></select></label><div className="operation-date-grid"><label>Inicio<input type="datetime-local" value={startsAt} onChange={event => setStartsAt(event.target.value)} /></label><label>Fin<input type="datetime-local" value={endsAt} min={startsAt || undefined} onChange={event => setEndsAt(event.target.value)} /></label></div><button type="submit" className="button primary" disabled={busy || title.trim().length < 6 || body.trim().length < 10}>Guardar borrador</button></form>;
 }
 
 function SupportConversation({ userId, messages, busy, onSend }: { userId: string; messages: SupportMessage[]; busy: boolean; onSend: (body: string) => Promise<boolean> }) {
@@ -455,7 +541,7 @@ function ProviderMap({ providers, reviews, categories, municipalities, demoMode,
       });
     }
   }
-  const located = providers.filter(provider => provider.demo_location);
+  const located = providers.map(p=>({...p,demo_location:p.demo_location ?? (p.public_latitude != null && p.public_longitude != null ? {latitude:Number(p.public_latitude),longitude:Number(p.public_longitude)} : undefined)})).filter(provider => provider.demo_location);
   function changeZoom(next: number) {
     setZoom(Math.max(11, Math.min(18, next)));
   }
@@ -486,10 +572,10 @@ function ProviderMap({ providers, reviews, categories, municipalities, demoMode,
         const average = items.length ? (items.reduce((sum, review) => sum + review.rating, 0) / items.length).toFixed(1) : null;
         const service = label(categories, provider.categories[0] ?? '');
         return <button type="button" className="map-provider-marker" key={provider.id} style={{ left: x, top: y }}
-          aria-label={'Abrir perfil de ' + provider.display_name + ', ' + service + ', ' + (average ? 'calificación de prueba ' + average + ' de 5' : 'sin calificación')}
+          aria-label={'Abrir perfil de ' + provider.display_name + ', ' + service + ', ' + (average ? 'calificación ' + average + ' de 5' : 'sin calificación')}
           onClick={() => onOpenProfile(provider)}>
           <span className="map-pin-icon"><CategoryIcon slug={provider.categories[0] ?? ''} /></span>
-          <span className="map-marker-label"><strong>{service}</strong><small>{average ? '★ ' + average + ' · prueba' : '☆ Sin reseñas'}</small></span>
+          <span className="map-marker-label"><strong>{service} · {average ? `★ ${average}` : '☆ Sin reseñas'}</strong><small>{(!provider.available || provider.availability==='unavailable') ? 'No disponible hoy' : provider.availability === 'soon' ? 'Disponible pronto' : 'Disponible ahora'}</small></span>
         </button>;
       })}
       <div className="osm-controls" aria-label="Controles del mapa">
@@ -506,7 +592,7 @@ function ProviderMap({ providers, reviews, categories, municipalities, demoMode,
       const items = reviews.filter(review => review.provider_id === provider.id);
       const average = items.length ? (items.reduce((sum, review) => sum + review.rating, 0) / items.length).toFixed(1) : null;
       return <button type="button" key={provider.id} onClick={() => onOpenProfile(provider)}>
-        <img src={providerImage(provider)} alt="" />
+        <ExpertPhoto provider={provider} />
         <span><strong>{label(categories, provider.categories[0] ?? '')} · {provider.display_name}</strong>
           <small>{label(municipalities, provider.municipality_slug)} · {average ? '★ ' + average + (demoMode ? ' · prueba' : '') : '☆ Sin reseñas'}</small>
           {!provider.demo_location && <small>Sin ubicación pública</small>}
@@ -536,40 +622,32 @@ function CategoryIcon({ slug }: { slug: string }) {
   </svg>;
 }
 
-function ProviderProfileDialog({ provider, categories, municipalities, reviews, compared, canCompare, demoMode, onClose, onCompare, onRequest }: {
+function ProviderProfileDialog({ allowDemoBooking=false,provider, categories, municipalities, reviews, compared, canCompare, demoMode, onClose, onCompare, onRequest }: {
   provider: Provider; categories: Category[]; municipalities: Municipality[]; reviews: Review[];
-  compared: boolean; canCompare: boolean; demoMode: boolean; onClose: () => void; onCompare: () => void; onRequest: () => void;
+  allowDemoBooking?:boolean;compared: boolean; canCompare: boolean; demoMode: boolean; onClose: () => void; onCompare: () => void; onRequest: () => void;
 }) {
-  const recentReviews = [...reviews].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).slice(0, 3);
-  const average = reviews.length ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1) : null;
-  return <div className="profile-dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="provider-profile-title" tabIndex={-1}
-      onKeyDown={event => { if (event.key === 'Escape') onClose(); }}>
-      <button className="profile-dialog-close" type="button" aria-label="Cerrar perfil" autoFocus onClick={onClose}>×</button>
-      <div className="profile-gallery" aria-label="Galería de servicios">
-        {provider.photo_paths?.length ? provider.photo_paths.map((path, index) => <img key={path} src={providerPhotoUrl(path)} alt={`Foto ${index + 1} de ${provider.display_name}`} />)
-          : [provider.categories[0] ?? '', 'plomeria', 'reparaciones'].map((slug, index) => <img key={`${slug}-${index}`} src={serviceImage(slug)} alt={`Imagen ilustrativa del servicio ${index + 1}`} />)}
-      </div>{!provider.photo_paths?.length && <p className="image-disclosure">Imágenes ilustrativas del oficio. Este perfil aún no tiene fotos propias.</p>}
-      <div className="profile-dialog-head"><span className="avatar profile-avatar" aria-hidden="true">{provider.display_name.slice(0, 1)}</span>
-        <div><p className="eyebrow">{provider.categories.map(id => label(categories, id)).join(' · ')}</p><h2 id="provider-profile-title">{provider.display_name}</h2>
-          <p>Profesional en {label(municipalities, provider.municipality_slug)}</p></div></div>
-      <div className="profile-facts"><span>⌖ {label(municipalities, provider.municipality_slug)}</span>
-        <span className={provider.available ? 'status' : 'status paused'}>{provider.available ? 'Recibe solicitudes' : 'No disponible por ahora'}</span>
-        {average ? <span className="profile-rating">★ {average} · {demoMode ? 'calificación de prueba' : reviews.length + ' reseña(s)'}</span> : <span>Aún sin reseñas verificadas</span>}
-      </div>
-      <div className="profile-highlights"><div><strong>{reviews.length || '—'}</strong><span>Reseñas</span></div><div><strong>{provider.years_experience ? `${provider.years_experience} años` : 'Por agregar'}</strong><span>Experiencia</span></div><div><strong>Por confirmar</strong><span>Tiempo de respuesta</span></div></div>
-      <div className="profile-dialog-copy"><h3>Experiencia y servicios</h3><p>{provider.bio}</p>{Boolean(provider.specialties?.length) && <div className="specialty-tags">{provider.specialties?.map(item => <span key={item}>{item}</span>)}</div>}
-        <p className="fine">El precio y el alcance se acuerdan mediante una cotización antes de iniciar. YoResuelvo! no procesa el pago.</p></div>
-      <div className="profile-reviews"><h3>{demoMode ? 'Calificaciones de prueba' : 'Reseñas de servicios completados'}</h3>{recentReviews.length ? recentReviews.map((review, index) => <article key={`${review.created_at}-${index}`}>
-        <strong>★ {review.rating}/5</strong><p>{review.body}</p><small>{date(review.created_at)}</small></article>)
-        : <p className="fine">Las reseñas aparecerán aquí cuando haya servicios completados y evaluados.</p>}</div>
-      <div className="profile-dialog-actions"><button type="button" className="button outline" disabled={!provider.available || (!canCompare && !compared)} onClick={onCompare}>{compared ? '✓ En comparación' : 'Comparar'}</button>
-        <button type="button" className="button primary" disabled={demoMode || !provider.available} onClick={onRequest}>{demoMode ? 'Solo vista de prueba' : provider.available ? 'Solicitar cotización' : 'No disponible'}</button></div>
-    </section>
-  </div>;
+  const [tab,setTab]=useState<'works'|'reviews'|'about'>('works');
+  const dialog=useRef<HTMLDialogElement>(null);
+  useEffect(()=>{const previous=document.activeElement as HTMLElement|null;dialog.current?.showModal();return()=>previous?.focus();},[]);
+  const average=reviews.length?reviews.reduce((n,r)=>n+r.rating,0)/reviews.length:null;
+  const price=provider.price_min!=null&&provider.price_max!=null?`${money(provider.price_min)} – ${money(provider.price_max)}`:'A cotizar';
+  return <dialog ref={dialog} className="profile-dialog expert-detail" onCancel={onClose} aria-labelledby="provider-profile-title">
+    <button className="profile-dialog-close" type="button" aria-label="Cerrar perfil" onClick={onClose}>×</button>
+    <div className="expert-cover"><ExpertPhoto provider={provider} cover /></div>
+    <div className="expert-detail-body"><div className="profile-dialog-head"><span className="avatar profile-avatar"><ExpertPhoto provider={provider}/></span><div><p className="eyebrow">{provider.categories.map(id=>label(categories,id)).join(' · ')}</p><h2 id="provider-profile-title">{provider.display_name}</h2><p>⌖ {label(municipalities,provider.municipality_slug)}</p></div></div>
+    <div className="profile-facts"><span className="rating-stars" aria-label={average?`${average.toFixed(1)} de 5 estrellas`:'Sin reseñas'}>{average?'★'.repeat(Math.round(average))+'☆'.repeat(5-Math.round(average)):'☆☆☆☆☆'}</span><strong>{average?.toFixed(1)??'Sin reseñas'}</strong><span>({reviews.length})</span><span className="status">{provider.available?'Recibe solicitudes':'No disponible'}</span>{provider.id.startsWith('demo-')&&<small>Perfil ilustrativo</small>}</div>
+    <div className="expert-price"><span>Rango orientativo</span><strong>{price}</strong><small>{provider.price_unit||'Por servicio'} · El importe final se define en la cotización.</small></div>
+    <div className="expert-tabs" role="tablist" aria-label="Información del experto">{([['works','Trabajos'],['reviews','Reseñas'],['about','Acerca de']] as const).map(([id,title])=><button key={id} id={`expert-tab-${id}`} role="tab" aria-selected={tab===id} aria-controls={`expert-panel-${id}`} tabIndex={tab===id?0:-1} onKeyDown={e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();const ids=['works','reviews','about'] as const;const next=e.key==='Home'?0:e.key==='End'?2:(ids.indexOf(tab)+(e.key==='ArrowRight'?1:2))%3;setTab(ids[next]);document.getElementById(`expert-tab-${ids[next]}`)?.focus();}}} onClick={()=>setTab(id)}>{title}</button>)}</div>
+    <section className="expert-tab-panel" role="tabpanel" id={`expert-panel-${tab}`} aria-labelledby={`expert-tab-${tab}`}>
+    {tab==='works'&&<>{provider.photo_paths?.length?<div className="expert-work-grid">{provider.photo_paths.map((path,i)=><img key={path} src={providerPhotoUrl(path)} alt={`${provider.id.startsWith('demo-')?'Imagen ilustrativa':'Trabajo'} de ${provider.display_name} ${i+1}`} loading="lazy"/>)}</div>:<p>Este experto aún no ha agregado fotografías de sus trabajos.</p>}</>}
+    {tab==='reviews'&&<div className="profile-reviews">{reviews.length?[...reviews].sort((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at)).map((r,i)=><article key={i}><strong className="rating-stars" aria-label={`${r.rating} de 5 estrellas`}>{'★'.repeat(r.rating)}{'☆'.repeat(5-r.rating)}</strong><p>{r.body||'Sin comentario'}</p><small>{date(r.created_at)}</small></article>):<p>Aún no hay reseñas de servicios completados.</p>}</div>}
+    {tab==='about'&&<div><h3>Experiencia y servicios</h3><p>{provider.bio}</p>{provider.years_experience!=null&&<p>{provider.years_experience} años de experiencia</p>}<div className="specialty-tags">{provider.specialties?.map(x=><span key={x}>{x}</span>)}</div><p>Cobertura: {label(municipalities,provider.municipality_slug)}</p></div>}
+    </section></div><div className="profile-dialog-actions"><button type="button" className="button outline" aria-pressed={compared} disabled={!provider.available||(!canCompare&&!compared)} onClick={onCompare}>{compared?'✓ En comparación':'＋ Comparar'}</button><button type="button" className="button primary" disabled={!provider.available||(demoMode&&!allowDemoBooking)} onClick={onRequest}>Solicitar cotización</button></div>
+  </dialog>;
 }
 
-function Account({ user, notifications, preferences, onRead, onSavePreferences, onDisableAllPush, onExport, recovery, onRecovered, busy, onAction, authIntent, onAuthIntentChange, onGoogleSignIn, onChooseMode, onPushOpen, onPushForeground }: {
+function Account({ operationsRole,onOperations,user, notifications, preferences, onRead, onSavePreferences, onDisableAllPush, onExport, recovery, onRecovered, busy, onAction, authIntent, onAuthIntentChange, onGoogleSignIn, onChooseMode, onPushOpen, onPushForeground }: {
+  operationsRole:string|null;onOperations:()=>void;
   user: User | null; notifications: Notification[]; preferences: NotificationPreferences | null;
   onRead: (id: number) => Promise<void>; onSavePreferences: (inApp: boolean) => Promise<void>; onExport: () => Promise<void>;
   onDisableAllPush: () => Promise<void>;
@@ -591,11 +669,12 @@ function Account({ user, notifications, preferences, onRead, onSavePreferences, 
   const [pushActive, setPushActive] = useState(false);
   const [pushAllowed, setPushAllowed] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [preferencesBusy, setPreferencesBusy] = useState(false);
   useEffect(() => { if (preferences) setInApp(preferences.in_app); }, [preferences?.in_app]);
   useEffect(() => { if (preferences) setPushAllowed(preferences.push_updates); }, [preferences?.push_updates]);
   useEffect(() => {
     let active = true;
-    if (user && pushDeliveryConfigured) void activePushForThisDevice(user.id).then(value => { if (active) setPushActive(value); });
+    if (user && pushDeliveryConfigured) void activePushForThisDevice(user.id).then(value => { if (active) setPushActive(value); }).catch(error => { if (active) setLocalNotice(errText(error)); });
     else setPushActive(false);
     return () => { active = false; };
   }, [user?.id]);
@@ -642,7 +721,7 @@ function Account({ user, notifications, preferences, onRead, onSavePreferences, 
     const signedIn = await onAction(async () => {
       const { error } = await client.auth.signInWithPassword({ email: emailAddress, password });
       if (error) throw error;
-    }, 'Sesión iniciada.', authIntent === 'prestador' ? 'ofrecer' : 'explorar');
+    }, 'Sesión iniciada.', 'inicio');
     if (signedIn) setPassword('');
   }
 
@@ -671,18 +750,18 @@ function Account({ user, notifications, preferences, onRead, onSavePreferences, 
     setPushBusy(true); setLocalNotice('');
     try {
       await onDisableAllPush();
-      setPushAllowed(false); setLocalNotice('Los avisos push quedaron pausados en todos tus dispositivos.');
+      setPushAllowed(false); setPushActive(false); setLocalNotice('Los avisos push quedaron pausados en todos tus dispositivos.');
     } catch (e) { setLocalNotice(errText(e)); }
     finally { setPushBusy(false); }
   }
 
   const displayName = String(user?.user_metadata.display_name ?? user?.user_metadata.full_name ?? user?.email ?? 'Tu cuenta');
-  return <section className="section auth-section">
+  return <section className={`section auth-section${user ? " account-view" : ""}`}>
     <aside className="auth-aside">
       <div className="auth-brand"><img src="/brand/yoresuelvo-icon-512.png" alt="" /><span>YoResuelvo<span>!</span><small>DELICIAS Y LA REGIÓN</small></span></div>
       <p className="auth-kicker">GENTE CAPAZ, CERCA DE TI</p>
       <h1>{recovery ? 'Recupera el control de tu cuenta.' : user ? 'Qué bueno tenerte aquí.' : mode === 'signup' ? 'Tu siguiente paso empieza aquí.' : mode === 'reset' ? 'Volvamos a abrirte el camino.' : 'Resuelve lo que sigue.'}</h1>
-      <p className="auth-lead">{user ? 'Tu cuenta te sirve para encontrar ayuda y también ofrecer tus servicios.' : 'Conecta con personas de confianza de Delicias y la región, con un acceso sencillo y seguro.'}</p>
+      <p className="auth-lead">{user ? 'Administra tu perfil y tus preferencias.' : 'Conecta con personas de confianza de Delicias y la región, con un acceso sencillo y seguro.'}</p>
       {!user && !recovery && <div className="auth-intent-picker" aria-label="Elige cómo quieres empezar">
         <button type="button" className={authIntent === 'cliente' ? 'auth-intent selected' : 'auth-intent'} aria-pressed={authIntent === 'cliente'} onClick={() => onAuthIntentChange('cliente')}>
           <span className="auth-intent-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.4"/><path d="m16 16 4.3 4.3"/></svg></span>
@@ -692,51 +771,43 @@ function Account({ user, notifications, preferences, onRead, onSavePreferences, 
           <span className="auth-intent-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8.5h16v11H4zM8 8.5V5h8v3.5M4 13h16M10 12v2h4v-2"/></svg></span>
           <span><strong>Quiero ofrecer servicios</strong><small>Crear un perfil profesional</small></span>
         </button>
-        <p>Una sola cuenta puede hacer ambas cosas. Esta elección solo te lleva a la sección indicada.</p>
+        <p>Una sola cuenta puede hacer ambas cosas. Puedes cambiar de perfil desde tu cuenta.</p>
       </div>}
-      <div className="auth-trust"><span aria-hidden="true">✓</span><p><strong>Acceso de Supabase Auth</strong><small>Tu contraseña no se guarda en YoResuelvo.</small></p></div>
+      <div className="auth-trust"><span aria-hidden="true">✓</span><p><strong>Acceso seguro</strong><small>Tu contraseña no se guarda en YoResuelvo.</small></p></div>
     </aside>
 
     <div className="auth-main">
       {!recovery && user ? <div className="panel account-panel">
-        <p className="eyebrow">TU ESPACIO</p><div className="account-identity"><span className="account-avatar" aria-hidden="true">{displayName.slice(0, 1).toUpperCase()}</span><div><h2>Sesión activa</h2><p>{displayName}{displayName !== user.email && user.email ? <small>{user.email}</small> : null}</p></div></div>
-        <p className="fine">Una misma cuenta te permite solicitar y ofrecer servicios cuando quieras.</p>
+        <p className="eyebrow">TU ESPACIO</p><div className="account-identity"><span className="account-avatar" aria-hidden="true">{displayName.slice(0, 1).toUpperCase()}</span><div><h2>Mi cuenta</h2><p>{displayName}{displayName !== user.email && user.email ? <small>{user.email}</small> : null}</p></div></div>
+        
+
         <div className="account-mode-choice">
-          <h2>¿Qué quieres hacer ahora?</h2>
-          <div>
-            <button type="button" className={authIntent === 'cliente' ? 'mode-choice active' : 'mode-choice'} onClick={() => onChooseMode('cliente')}><strong>Buscar un servicio</strong><small>Comparar y solicitar cotizaciones</small></button>
-            <button type="button" className={authIntent === 'prestador' ? 'mode-choice active' : 'mode-choice'} onClick={() => onChooseMode('prestador')}><strong>Ofrecer servicios</strong><small>Administrar tu perfil profesional</small></button>
+          <h2>Cambiar de perfil</h2>
+          <div role="group" aria-label="Experiencias de tu cuenta">
+            <button type="button" className={authIntent === 'cliente' ? 'mode-choice active' : 'mode-choice'} disabled={busy} aria-pressed={authIntent === 'cliente'} onClick={() => onChooseMode('cliente')}><strong>Cliente</strong><small>Comparar y solicitar cotizaciones</small></button>
+            <button type="button" className={authIntent === 'prestador' ? 'mode-choice active' : 'mode-choice'} disabled={busy} aria-pressed={authIntent === 'prestador'} onClick={() => onChooseMode('prestador')}><strong>Experto</strong><small>Ofrecer mis servicios</small></button>
+            {operationsRole && <button type="button" className="mode-choice" disabled={busy} onClick={onOperations}><strong>Operaciones</strong><small>Administración</small></button>}
           </div>
         </div>
         <button className="button outline" type="button" disabled={busy} onClick={() => void onAction(async () => {
           await forgetPushOnSignOut(user.id);
           const { error } = await db!.auth.signOut(); if (error) throw error;
         }, 'Sesión cerrada.', 'explorar')}>Cerrar sesión</button>
-        <div className="privacy-panel">
-          <h2>Preferencias de avisos</h2>
-          <form className="form" onSubmit={e => { e.preventDefault(); void onSavePreferences(inApp); }}>
-            <label className="inline"><input type="checkbox" checked={inApp} onChange={e => setInApp(e.target.checked)} /> Avisos dentro de la aplicación</label>
-            <label className="inline locked"><input type="checkbox" defaultChecked={false} disabled /> Correo electrónico · proveedor pendiente</label>
-            <button className="button outline" type="submit" disabled={busy}>Guardar preferencias</button>
-          </form>
-          <p className="fine">Los avisos por correo permanecen apagados hasta configurar y probar un proveedor.</p>
-        </div>
-        <div className="privacy-panel push-settings">
-          <h2>Notificaciones push</h2>
-          <p className="fine">Recibe avisos de solicitudes, cotizaciones, cambios de estado y reseñas en tu PWA o app Android. Tú eliges en qué dispositivos activarlos.</p>
-          {!pushDeliveryConfigured ? <p className="push-unavailable" role="status">Firebase y sus credenciales de entrega todavía necesitan configuración.</p> : null}
-          {pushDeliveryConfigured ? <>
-            <p className="push-state">{pushActive ? 'Este dispositivo está registrado.' : pushAllowed ? 'Este dispositivo está pausado; otros pueden seguir activos.' : 'Los avisos push están apagados.'}</p>
-            <button className="button primary" type="button" disabled={pushBusy} onClick={() => void (pushActive ? turnOffPushHere() : turnOnPush())}>
-              {pushBusy ? 'Un momento…' : pushActive ? 'Desactivar en este dispositivo' : 'Activar en este dispositivo'}
-            </button>
-            {pushAllowed ? <button className="text-button push-disable-all" type="button" disabled={pushBusy} onClick={() => void turnOffPushEverywhere()}>Pausar avisos en todos mis dispositivos</button> : null}
-          </> : null}
+        <div className="privacy-panel notification-settings">
+          <h2>Notificaciones</h2>
+          <div className="setting-row"><span id="in-app-label">Avisos en la aplicación</span><button type="button" role="switch" aria-checked={inApp} aria-labelledby="in-app-label" className="setting-switch" disabled={preferencesBusy || busy} onClick={async () => {
+            const next = !inApp; setPreferencesBusy(true); setLocalNotice('');
+            try { await onSavePreferences(next); setInApp(next); } catch (error) { setLocalNotice(errText(error)); } finally { setPreferencesBusy(false); }
+          }}><span aria-hidden="true"/><span className="switch-caption">{inApp ? 'Encendido' : 'Apagado'}</span></button></div>
+          {pushDeliveryConfigured && <>
+            <div className="setting-row"><span id="push-label">Push en este dispositivo</span><button type="button" role="switch" aria-checked={pushActive && pushAllowed} aria-labelledby="push-label" aria-busy={pushBusy} className="setting-switch" disabled={pushBusy} onClick={() => void (pushActive && pushAllowed ? turnOffPushHere() : turnOnPush())}><span aria-hidden="true"/><span className="switch-caption">{pushBusy ? 'Guardando…' : pushActive && pushAllowed ? 'Encendido' : 'Apagado'}</span></button></div>
+            {pushAllowed && <button className="text-button push-disable-all" type="button" disabled={pushBusy} onClick={() => void turnOffPushEverywhere()}>Apagar en todos mis dispositivos</button>}
+          </>}
           {localNotice && <p className="auth-local-notice" role="status">{localNotice}</p>}
         </div>
         <div className="privacy-panel">
           <h2>Descargar mis datos</h2>
-          <p className="fine">Prepara un archivo JSON con tus datos y los registros de servicios en que participas, respetando los permisos de tu cuenta. El archivo se descarga en este dispositivo.</p>
+          <p className="fine">Descarga una copia de tu información.</p>
           <button type="button" className="button outline" disabled={busy} onClick={() => void onExport()}>Descargar archivo de datos</button>
         </div>
         <div className="privacy-panel account-deletion-panel">
@@ -770,7 +841,7 @@ function Account({ user, notifications, preferences, onRead, onSavePreferences, 
         </form>
         <div className="auth-card-footer">
           {recovery ? <button type="button" onClick={onRecovered}>Volver al acceso</button> : mode === 'reset' ? <button type="button" onClick={() => { setMode('signin'); setLocalNotice(''); }}>Volver al acceso</button> : mode === 'signin' ? <button type="button" onClick={() => { setMode('reset'); setLocalNotice(''); }}>Olvidé mi contraseña</button> : <span>Al crear la cuenta, confirma tu correo para proteger el acceso.</span>}
-          <span>Protegido con Supabase Auth</span>
+          
         </div>
       </div>}
     </div>
@@ -782,6 +853,7 @@ function RequestForm({ providers, categories, municipalities, initialCategory, i
   initialIds: string[]; busy: boolean; onCancel: () => void;
   onSubmit: (input: { category: string; municipality: string; title: string; description: string; providerIds: string[]; preferredAt: string | null }) => Promise<void>;
 }) {
+  const [step,setStep]=useState(1);
   const [category, setCategory] = useState(initialCategory);
   const [municipality, setMunicipality] = useState(initialCity);
   const [ids, setIds] = useState(initialIds);
@@ -791,31 +863,39 @@ function RequestForm({ providers, categories, municipalities, initialCategory, i
   const selected = ids.filter(id => eligible.some(p => p.id === id));
   return <form id="request-form" className="panel form" onSubmit={e => {
     e.preventDefault();
+    if(step<3){setStep(step+1);return;}
     if (!selected.length) return;
     void onSubmit({ category, municipality, title, description, providerIds: selected, preferredAt: preferred ? new Date(preferred).toISOString() : null });
   }}>
     <div className="section-head"><div><p className="eyebrow">NUEVA SOLICITUD</p><h2>Cuéntanos qué necesitas</h2></div><button type="button" className="text-button" onClick={onCancel}>Cerrar</button></div>
-    <div className="form-row"><label>Servicio<select required value={category} onChange={e => { setCategory(e.target.value); setIds([]); }}>{categories.map(c => <option key={c.slug} value={c.slug}>{c.name}</option>)}</select></label><label>Municipio<select required value={municipality} onChange={e => { setMunicipality(e.target.value); setIds([]); }}>{municipalities.map(m => <option key={m.slug} value={m.slug}>{m.name}</option>)}</select></label></div>
-    <fieldset><legend>Prestadores a invitar (hasta cinco)</legend><div className="checks">{eligible.map(p => <label key={p.id}><input type="checkbox" checked={selected.includes(p.id)} disabled={selected.length >= 5 && !selected.includes(p.id)} onChange={() => setIds(current => current.includes(p.id) ? current.filter(id => id !== p.id) : [...current, p.id])} /> {p.display_name}</label>)}</div>{!eligible.length && <p className="fine">No hay prestadores aprobados para esa combinación.</p>}</fieldset>
-    <label>Título de la tarea<input minLength={10} maxLength={120} required value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej. Revisar tres contactos eléctricos" /></label>
+    <ol className="flow-steps" aria-label="Pasos de solicitud">{['Tu problema','Lugar y horario','Revisar'].map((t,i)=><li key={t} aria-current={step===i+1?'step':undefined}>{i+1}. {t}</li>)}</ol>
+    <div hidden={step!==2}><div className="form-row"><label>Servicio<select required value={category} onChange={e => { setCategory(e.target.value); setIds([]); }}>{categories.map(c => <option key={c.slug} value={c.slug}>{c.name}</option>)}</select></label><label>Municipio<select required value={municipality} onChange={e => { setMunicipality(e.target.value); setIds([]); }}>{municipalities.map(m => <option key={m.slug} value={m.slug}>{m.name}</option>)}</select></label></div>
+    <fieldset><legend>Expertos a invitar (hasta tres)</legend><div className="checks">{eligible.map(p => <label key={p.id}><input type="checkbox" checked={selected.includes(p.id)} disabled={selected.length >= 3 && !selected.includes(p.id)} onChange={() => setIds(current => current.includes(p.id) ? current.filter(id => id !== p.id) : [...current, p.id])} /> {p.display_name}</label>)}</div>{!eligible.length && <p className="fine">No hay prestadores aprobados para esa combinación.</p>}</fieldset>
+    </div><div hidden={step!==1}><label>Título de la tarea<input minLength={10} maxLength={120} required value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej. Revisar tres contactos eléctricos" /></label>
     <label>Descripción y alcance<textarea minLength={20} maxLength={2000} required value={description} onChange={e => setDescription(e.target.value)} placeholder="Explica el problema y qué resultado esperas. Evita poner tu dirección exacta aquí." /></label>
-    <label>Horario preferido (opcional)<input type="datetime-local" value={preferred} onChange={e => setPreferred(e.target.value)} /></label>
-    <p className="fine">El prestador verá tu descripción. La dirección exacta se compartirá solo después de contratar.</p>
-    <button className="button primary" type="submit" disabled={busy || !selected.length}>Enviar solicitud</button>
+    </div><div hidden={step!==2}><label>Horario preferido (opcional)<input type="datetime-local" value={preferred} onChange={e => setPreferred(e.target.value)} /></label>
+    </div>{step===3&&<div className="request-review"><h3>{title}</h3><p>{description}</p><p>{label(categories,category)} · {label(municipalities,municipality)}</p><p>{preferred?date(new Date(preferred).toISOString()):'Horario por acordar'}</p><p>{selected.map(id=>providers.find(p=>p.id===id)?.display_name).join(' · ')}</p><small>Enviar la solicitud no confirma una cita. La dirección exacta se comparte después del acuerdo.</small></div>}<div className="card-actions">{step>1&&<button className="button outline" type="button" onClick={()=>setStep(step-1)}>Atrás</button>}<button className="button primary" type="submit" disabled={busy || !selected.length}>{step===3?'Enviar solicitud':'Continuar'}</button></div>
   </form>;
+}
+
+function LocationPicker({latitude,longitude,onChange}:{latitude:string;longitude:string;onChange:(a:string,b:string)=>void}) {
+ const z=13,center=projectMapPoint({latitude:28.191,longitude:-105.468},z),tileX=Math.floor(center.x/256),tileY=Math.floor(center.y/256);
+ return <div className="location-picker" role="group" aria-label="Selecciona tu zona en el mapa" onClick={e=>{const r=e.currentTarget.getBoundingClientRect(),p=unprojectMapPoint((tileX-1)*256+(e.clientX-r.left)/r.width*768,(tileY-1)*256+(e.clientY-r.top)/r.height*768,z);onChange(p.latitude.toFixed(3),p.longitude.toFixed(3));}}>{[-1,0,1].flatMap(y=>[-1,0,1].map(x=><img key={`${x}:${y}`} draggable={false} alt="" src={`https://tile.openstreetmap.org/${z}/${tileX+x}/${tileY+y}.png`}/>))}{latitude&&longitude&&<span className="location-picked" style={{left:`${(projectMapPoint({latitude:Number(latitude),longitude:Number(longitude)},z).x-(tileX-1)*256)/768*100}%`,top:`${(projectMapPoint({latitude:Number(latitude),longitude:Number(longitude)},z).y-(tileY-1)*256)/768*100}%`}}>●</span>}<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()}>© OpenStreetMap</a></div>;
 }
 
 function ProviderPage({ user, current, categories, municipalities, configured: active, busy, onSignIn, onSave }: {
   user: User | null; current: Provider | null; categories: Category[]; municipalities: Municipality[];
   configured: boolean; busy: boolean; onSignIn: () => void;
-  onSave: (input: { id: string; display_name: string; bio: string; municipality_slug: string; available: boolean; categories: string[]; exists: boolean; years_experience: number | null; specialties: string[]; photo_paths: string[] }) => Promise<void>;
+  onSave: (input: { id: string; display_name: string; bio: string; municipality_slug: string; available: boolean; categories: string[]; exists: boolean; price_min?:number|null;price_max?:number|null;price_unit?:string; years_experience: number | null; specialties: string[]; photo_paths: string[]; public_latitude?: number | null; public_longitude?: number | null; profile_photo_path?: string | null }) => Promise<void>;
 }) {
   const [name, setName] = useState(''); const [bio, setBio] = useState('');
+  const [lat,setLat]=useState(current?.public_latitude?.toString() ?? ''); const [lon,setLon]=useState(current?.public_longitude?.toString() ?? ''); const [portrait,setPortrait]=useState(current?.profile_photo_path ?? '');
   const [city, setCity] = useState('delicias'); const [selected, setSelected] = useState<string[]>([]);
+  const [priceMin,setPriceMin]=useState(current?.price_min?.toString()??''),[priceMax,setPriceMax]=useState(current?.price_max?.toString()??''),[priceUnit,setPriceUnit]=useState(current?.price_unit??'Por servicio');
   const [available, setAvailable] = useState(true);
   const [years, setYears] = useState(''); const [specialties, setSpecialties] = useState('');
   const [photos, setPhotos] = useState<string[]>([]); const [uploading, setUploading] = useState(false); const [uploadError, setUploadError] = useState('');
-  useEffect(() => { if (current) { setName(current.display_name); setBio(current.bio); setCity(current.municipality_slug); setSelected(current.categories); setAvailable(current.available); setYears(current.years_experience?.toString() ?? ''); setSpecialties(current.specialties?.join(', ') ?? ''); setPhotos(current.photo_paths ?? []); } }, [current]);
+  useEffect(() => { if (current) { setPriceMin(current.price_min?.toString()??'');setPriceMax(current.price_max?.toString()??'');setPriceUnit(current.price_unit??'Por servicio'); setLat(current.public_latitude?.toString() ?? ''); setLon(current.public_longitude?.toString() ?? ''); setPortrait(current.profile_photo_path ?? ''); setName(current.display_name); setBio(current.bio); setCity(current.municipality_slug); setSelected(current.categories); setAvailable(current.available); setYears(current.years_experience?.toString() ?? ''); setSpecialties(current.specialties?.join(', ') ?? ''); setPhotos(current.photo_paths ?? []); } }, [current]);
   async function addPhotos(files: FileList | null) {
     if (!files || !user) return;
     setUploadError(''); setUploading(true);
@@ -829,22 +909,23 @@ function ProviderPage({ user, current, categories, municipalities, configured: a
     finally { setUploading(false); }
   }
   return <section className="section"><p className="eyebrow">QUIERO OFRECER SERVICIOS</p><h1>Lo que sabes hacer,<br />alguien lo necesita.</h1>
-    <div className="steps"><div><b>01</b><h3>Presenta tus habilidades</h3><p>Oficio, municipio, disponibilidad y experiencia.</p></div><div><b>02</b><h3>Recibe solicitudes</h3><p>Solo tras la revisión del perfil y según tu oficio y zona.</p></div><div><b>03</b><h3>Propón un alcance</h3><p>Explica materiales, traslado, vigencia y total antes de acordar.</p></div></div>
     {!active ? <p className="alert">El alta real se habilita con el proyecto independiente. <a href="/demo/">Ver la demo</a>.</p>
       : !user ? <button type="button" className="button primary" onClick={onSignIn}>Ingresar para crear perfil</button>
       : <form className="panel form" onSubmit={e => { e.preventDefault(); void onSave({
-        id: user.id, display_name: name, bio, municipality_slug: city, available, categories: selected, exists: Boolean(current), years_experience: years ? Number(years) : null, specialties: specialties.split(',').map(item => item.trim()).filter(Boolean).slice(0, 8), photo_paths: photos
+        id: user.id, price_min:priceMin?Number(priceMin):null,price_max:priceMax?Number(priceMax):null,price_unit:priceUnit, display_name: name, bio, municipality_slug: city, available, categories: selected, exists: Boolean(current), years_experience: years ? Number(years) : null, specialties: specialties.split(',').map(item => item.trim()).filter(Boolean).slice(0, 8), photo_paths: photos, public_latitude: lat ? Number(lat) : null, public_longitude: lon ? Number(lon) : null, profile_photo_path: portrait || null
       }); }}>
-        <div className="section-head"><h2>{current ? 'Edita tu perfil' : 'Crea tu perfil'}</h2>{current && <span className="status">Estado: {({ pending: 'En revisión', approved: 'Aprobado', rejected: 'Rechazado', suspended: 'Suspendido' } as Record<string,string>)[current.approval_status]}</span>}</div>
+        <div className="section-head"><h2>{current ? 'Edita tu perfil' : 'Mi perfil profesional'}</h2>{current && <span className="status">Estado: {({ pending: 'En revisión', approved: 'Aprobado', rejected: 'Rechazado', suspended: 'Suspendido' } as Record<string,string>)[current.approval_status]}</span>}</div>
         <label>Nombre público o nombre comercial<input required minLength={3} maxLength={80} value={name} onChange={e => setName(e.target.value)} /></label>
         <label>Experiencia y servicios<textarea required minLength={20} maxLength={800} value={bio} onChange={e => setBio(e.target.value)} placeholder="Describe lo que haces sin compartir teléfono ni domicilio." /></label>
         <div className="form-row"><label>Años de experiencia<input type="number" min="0" max="60" value={years} onChange={e => setYears(e.target.value)} placeholder="Ej. 5" /></label><label>Especialidades<input maxLength={240} value={specialties} onChange={e => setSpecialties(e.target.value)} placeholder="Instalación, mantenimiento…" /></label></div>
-        <div className="provider-photo-editor"><strong>Fotografías de tu trabajo</strong><p className="fine">Hasta cinco imágenes JPG, PNG o WebP de 4 MB. Serán públicas en tu perfil.</p><div className="photo-editor-track">{photos.map(path => <div key={path}><img src={providerPhotoUrl(path)} alt="Trabajo subido" /><button type="button" onClick={() => setPhotos(current => current.filter(item => item !== path))} aria-label="Quitar fotografía del perfil">×</button></div>)}</div>{photos.length < 5 && <label className="button outline">{uploading ? 'Subiendo…' : '＋ Agregar fotos'}<input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden disabled={uploading} onChange={e => { void addPhotos(e.target.files); e.target.value = ''; }} /></label>}{uploadError && <p role="alert" className="alert error">{uploadError}</p>}</div>
+        {current&&<fieldset><legend>Rango orientativo (opcional)</legend><div className="form-row"><label>Desde MXN<input type="number" min="0" max="1000000" step="0.01" value={priceMin} onChange={e=>setPriceMin(e.target.value)}/></label><label>Hasta MXN<input type="number" min={priceMin||0} max="1000000" step="0.01" value={priceMax} onChange={e=>setPriceMax(e.target.value)}/></label></div><label>Unidad<select value={priceUnit} onChange={e=>setPriceUnit(e.target.value)}><option>Por servicio</option><option>Por hora</option><option>Por visita</option></select></label><small>Completa ambos importes o déjalos vacíos. La cotización define el total final.</small></fieldset>}<div className="provider-photo-editor"><strong>Fotografías de tu trabajo</strong><p className="fine">Hasta 5 fotos de tus trabajos · 4 MB por foto.</p><div className="photo-editor-track">{photos.map(path => <div key={path}><img src={providerPhotoUrl(path)} alt="Trabajo subido" /><button type="button" onClick={() => setPhotos(current => current.filter(item => item !== path))} aria-label="Quitar fotografía del perfil">×</button></div>)}</div>{photos.length < 5 && <label className="button outline">{uploading ? 'Subiendo…' : '＋ Agregar fotos'}<input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden disabled={uploading} onChange={e => { void addPhotos(e.target.files); e.target.value = ''; }} /></label>}{uploadError && <p role="alert" className="alert error">{uploadError}</p>}</div>
+        <fieldset><legend>Foto de perfil</legend>{portrait && <img className="portrait-preview" src={providerPhotoUrl(portrait)} alt="Tu perfil"/>}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={async e=>{const file=e.target.files?.[0];if(!file||!user)return;setUploading(true);try{setPortrait(await uploadProviderPhoto(user.id,file));}catch(error){setUploadError(errText(error));}finally{setUploading(false);}}}/></fieldset>
+        <fieldset><legend>Zona pública de servicio</legend><p className="fine">Elige una zona aproximada. Será visible en el mapa.</p><div className="form-row"><label>Latitud<input type="number" step="0.0001" min="-90" max="90" value={lat} onChange={e=>setLat(e.target.value)}/></label><label>Longitud<input type="number" step="0.0001" min="-180" max="180" value={lon} onChange={e=>setLon(e.target.value)}/></label></div><LocationPicker latitude={lat} longitude={lon} onChange={(a,b)=>{setLat(a);setLon(b);}}/><button type="button" className="button outline" onClick={()=>navigator.geolocation.getCurrentPosition(p=>{setLat((Math.round(p.coords.latitude*1000)/1000).toString());setLon((Math.round(p.coords.longitude*1000)/1000).toString());},()=>setUploadError('No pudimos obtener tu ubicación. Puedes escribir las coordenadas.'))}>Usar mi zona actual</button>{lat&&lon&&<iframe title="Zona de servicio" className="location-preview" src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(lon)-.01}%2C${Number(lat)-.01}%2C${Number(lon)+.01}%2C${Number(lat)+.01}&layer=mapnik&marker=${lat}%2C${lon}`}/>}<button type="button" className="button outline" onClick={()=>{setLat('');setLon('');}}>Quitar ubicación pública</button></fieldset>
         <label>Municipio de cobertura<select value={city} onChange={e => setCity(e.target.value)}>{municipalities.map(m => <option key={m.slug} value={m.slug}>{m.name}</option>)}</select></label>
-        <fieldset><legend>Oficios</legend><div className="checks">{categories.map(c => <label key={c.slug}><input type="checkbox" checked={selected.includes(c.slug)} onChange={() => setSelected(current => current.includes(c.slug) ? current.filter(id => id !== c.slug) : [...current, c.slug])} /> {c.name}</label>)}</div></fieldset>
+        <CategoryPicker categories={categories} value={selected} onChange={setSelected} label="Oficios y servicios"/>
         <label className="inline"><input type="checkbox" checked={available} onChange={e => setAvailable(e.target.checked)} /> Disponible para nuevas solicitudes</label>
         <p className="fine">Cambiar el nombre, descripción o municipio de un perfil aprobado lo devuelve a revisión. No publiques datos de contacto privados.</p>
-        <button type="submit" className="button primary" disabled={busy || uploading || !selected.length}>Guardar perfil</button>
+        <button type="submit" className="button primary" disabled={busy || uploading || !selected.length || Boolean(priceMin)!==Boolean(priceMax) || Boolean(priceMin&&Number(priceMax)<Number(priceMin))}>Guardar perfil</button>
       </form>}
   </section>;
 }
@@ -856,9 +937,10 @@ function RequestsPage({ user, requests, quotes, jobs, providers, categories, mun
   onQuote: (input: { requestId: string; scope: string; materialsNote: string; exclusions: string; labor: number; materials: number; travel: number; expiresAt: string; proposedAt: string | null }) => Promise<void>;
   onAccept: (id: string) => Promise<void>;
 }) {
+  const [accepting,setAccepting]=useState<Quote|null>(null);
   const [filter, setFilter] = useState<'todas' | 'abiertas' | 'contratadas' | 'recibidas'>('todas');
   const visible = requests.filter(request => filter === 'todas' || (filter === 'abiertas' && request.status === 'open') || (filter === 'contratadas' && request.status === 'contracted') || (filter === 'recibidas' && request.client_id !== user?.id));
-  return <section className="section"><p className="eyebrow">ACUERDOS CLAROS</p><h1>Solicitudes y cotizaciones</h1>
+  return <section className="section"><p className="eyebrow">ACUERDOS CLAROS</p><h1>Solicitudes y propuestas</h1>{accepting&&<div className="profile-dialog-backdrop"><section className="onboarding panel" role="dialog" aria-modal="true" aria-labelledby="accept-title"><h2 id="accept-title">Revisar acuerdo</h2><p>{accepting.scope}</p><strong>{money(accepting.total_amount)}</strong><p>Materiales: {accepting.materials_note||'Sin materiales especificados'}</p><p>Exclusiones: {accepting.exclusions||'Ninguna'}</p><p>Horario propuesto: {date(accepting.proposed_at)}</p><small>El pago se acuerda directamente con el experto. El ticket registra el acuerdo.</small><div className="card-actions"><button className="button outline" disabled={busy} onClick={()=>setAccepting(null)}>Volver</button><button className="button primary" disabled={busy} onClick={async()=>{await onAccept(accepting.id);setAccepting(null);}}>Aceptar y generar ticket</button></div></section></div>}
     {user && requests.length > 0 && <div className="request-filters" role="group" aria-label="Filtrar solicitudes">{([['todas','Todas'],['abiertas','Abiertas'],['contratadas','Contratadas'],['recibidas','Recibidas']] as const).map(([key, title]) => <button type="button" key={key} aria-pressed={filter === key} onClick={() => setFilter(key)}>{title}</button>)}</div>}
     {!active ? <p className="empty">Esta vista necesita el proyecto real. <a href="/demo/">Prueba el flujo de la demo</a>.</p>
       : !user ? <button className="button primary" type="button" onClick={onSignIn}>Ingresar para consultar</button>
@@ -867,7 +949,7 @@ function RequestsPage({ user, requests, quotes, jobs, providers, categories, mun
         const versions = quotes.filter(q => q.request_id === request.id);
         const job = jobs.find(j => j.request_id === request.id);
         return <article className="panel request-card" key={request.id}>
-          <div className="section-head"><div><span className="eyebrow">{mine ? 'MI SOLICITUD' : 'INVITACIÓN RECIBIDA'}</span><h2>{request.title}</h2></div><span className="status">{request.status === 'open' ? 'Abierta' : request.status === 'contracted' ? 'Contratada' : request.status}</span></div>
+          <div className="section-head"><div><span className="eyebrow">{mine ? 'MI SOLICITUD' : 'INVITACIÓN RECIBIDA'}</span><h2>{request.title}</h2></div><span className="status">{request.operations_status === 'pending' ? 'En verificación' : request.operations_status === 'rejected' ? 'No autorizada' : request.status === 'open' ? 'Abierta' : request.status === 'contracted' ? 'Contratada' : request.status}</span></div>
           <p className="fine">{label(categories, request.category_slug)} · {label(municipalities, request.municipality_slug)} · Creada {date(request.created_at)} · Preferencia {date(request.preferred_at)}</p>
           <p>{request.description}</p><div className="request-summary"><span>{versions.length} {versions.length === 1 ? 'cotización' : 'cotizaciones'}</span><strong>{job ? `Contratado: ${money(versions.find(q => q.id === job.quote_version_id)?.total_amount ?? 0)}` : versions.length ? `Desde ${money(Math.min(...versions.map(q => q.total_amount)))}` : 'Aún sin cotizar'}</strong></div>
           {versions.length > 0 && <div className="quote-list">{versions.map(q => {
@@ -878,12 +960,14 @@ function RequestsPage({ user, requests, quotes, jobs, providers, categories, mun
               <p>{q.scope}</p><small>Mano de obra {money(q.labor_amount)} · Materiales {money(q.materials_amount)} · Traslado {money(q.travel_amount)}</small>
               <small>Materiales: {q.materials_note || 'Sin detalle'} · Exclusiones: {q.exclusions || 'Ninguna declarada'}</small>
               <small>Vigencia hasta {date(q.expires_at)} · Horario propuesto {date(q.proposed_at)}</small>
-              {mine && valid && <button type="button" className="button primary" disabled={busy} onClick={() => void onAccept(q.id)}>Aceptar esta versión</button>}
+              {mine && valid && <button type="button" className="button primary" disabled={busy} onClick={() => setAccepting(q)}>Revisar y aceptar</button>}
               {job?.quote_version_id === q.id && <span className="status">Versión aceptada</span>}
               {!latest && <span className="fine">Sustituida por una versión posterior.</span>}
             </div>;
           })}</div>}
-          {!mine && request.status === 'open' && <QuoteForm requestId={request.id} busy={busy} onSubmit={onQuote} />}
+          {mine && request.operations_status === 'pending' && <p className="fine">Operaciones verificará la solicitud antes de que los especialistas puedan enviar cotizaciones.</p>}
+          {mine && request.operations_status === 'rejected' && <p className="fine">La solicitud no fue autorizada. Puedes escribir a Operaciones desde Mensajes para consultar el seguimiento.</p>}
+          {!mine && request.status === 'open' && (request.operations_status ?? 'approved') === 'approved' && <QuoteForm requestId={request.id} busy={busy} onSubmit={onQuote} />}
         </article>;
       }) : <p className="empty">No hay solicitudes con este filtro.</p>}</div> : <div className="empty"><h3>Aún no tienes solicitudes</h3><p>Cuando invites prestadores o recibas una invitación, aparecerá aquí.</p><button className="button primary" onClick={onExplore}>Explorar servicios</button></div>}
   </section>;
@@ -981,9 +1065,9 @@ function TicketCard({ ticket, job, user, request, address, review, events, messa
   const a = ticket.agreement;
   const options: { next: string; label: string; requiresReason?: boolean }[] = [];
   if (provider) {
-    if (job.status === 'confirmed' && job.scheduled_at) options.push({ next: 'scheduled', label: 'Confirmar agenda' });
-    if (['confirmed','scheduled'].includes(job.status)) options.push({ next: 'in_progress', label: 'Iniciar trabajo' });
-    if (job.status === 'in_progress') options.push({ next: 'completion_reported', label: 'Reportar terminación' });
+
+    if ((job.operations_status ?? 'approved') === 'approved' && job.status === 'scheduled') options.push({ next: 'in_progress', label: 'Iniciar trabajo' });
+    if ((job.operations_status ?? 'approved') === 'approved' && job.status === 'in_progress') options.push({ next: 'completion_reported', label: 'Reportar terminación' });
   }
   if (client) {
     if (job.status === 'completion_reported') options.push({ next: 'completed', label: 'Confirmar terminado' });
@@ -999,7 +1083,9 @@ function TicketCard({ ticket, job, user, request, address, review, events, messa
     <p>{String(a.scope ?? '')}</p>
     <dl><div><dt>Mano de obra</dt><dd>{money(Number(a.labor_amount ?? 0))}</dd></div><div><dt>Materiales</dt><dd>{money(Number(a.materials_amount ?? 0))}</dd></div><div><dt>Traslado</dt><dd>{money(Number(a.travel_amount ?? 0))}</dd></div><div className="total"><dt>Total acordado</dt><dd>{money(Number(a.total_amount ?? 0))}</dd></div></dl>
     <p className="fine">Materiales: {String(a.materials_note || 'Sin detalle')} · Exclusiones: {String(a.exclusions || 'Ninguna declarada')}</p>
-    <p className="fine">Versión {String(a.quote_version ?? '')} · Horario {a.scheduled_at ? date(String(a.scheduled_at)) : 'Por acordar'} · Emitido {date(ticket.issued_at)}</p>
+    <ol className="flow-steps service-progress" aria-label="Avance del servicio">{['confirmed','scheduled','in_progress','completion_reported','completed'].map((status,i)=><li key={status} aria-current={job.status===status?'step':undefined}>{['Acuerdo','Agendado','En curso','Por confirmar','Completado'][i]}</li>)}</ol><p className="fine">Versión {String(a.quote_version ?? '')} · Horario {job.scheduled_at ? date(job.scheduled_at) : 'Por acordar'}{job.scheduled_end_at ? ` — ${date(job.scheduled_end_at)}` : ''} · Emitido {date(ticket.issued_at)}</p>
+    {job.operations_status === 'pending' && <p className="request-summary">Servicio en espera de autorización de Operaciones; todavía no debe iniciarse.</p>}
+    {job.operations_status === 'rejected' && <p className="alert error">El servicio no fue autorizado. Contacta a Operaciones para el seguimiento.</p>}
     <p className="fine">El pago se acuerda fuera de la plataforma. Este ticket no es factura ni comprobante de pago.</p>
     {address && <p className="private-address"><strong>Dirección de servicio:</strong> {address.address} <small>Visible solo a las partes contratantes.</small></p>}
     {client && job.status !== 'cancelled' && <form className="form no-print" onSubmit={e => { e.preventDefault(); void onAddress(job.request_id,addressText,Boolean(address)); }}>
@@ -1023,7 +1109,7 @@ function TicketCard({ ticket, job, user, request, address, review, events, messa
       {appeals.map(appeal => <AppealTicketCard key={appeal.report_id} appeal={appeal} busy={busy} onAppeal={onAppeal} />)}
       <p className="fine">La apelación solicita una segunda revisión operativa; no arbitra pagos ni determina reembolsos.</p>
     </section>}
-    <section className="conversation no-print" aria-label="Mensajes privados del servicio"><div className="conversation-title"><span>☏</span><div><h3>Chat del servicio</h3><small>Solo tú y la otra parte</small></div></div>
+    <ScheduleAgreement job={job} userId={user.id}/><section className="conversation no-print" aria-label="Mensajes privados del servicio"><div className="conversation-title"><span>☏</span><div><h3>Chat del servicio</h3><small>Solo tú y la otra parte</small></div></div>
       {messages.length ? <div className="chat-messages">{messages.map(m => <div className={`chat-bubble${m.sender_id === user.id ? ' own' : ''}`} key={m.id}><p>{m.body}</p><small>{date(m.created_at)}</small></div>)}</div> : <p className="chat-empty">Aquí podrás conversar cuando haya un servicio confirmado.</p>}
       <form className="chat-composer" onSubmit={e => { e.preventDefault(); if (messageBody.trim()) { void onMessage(job.id, messageBody); setMessageBody(''); } }}><label className="sr-only" htmlFor={`chat-${job.id}`}>Mensaje privado</label><input id={`chat-${job.id}`} required maxLength={1500} value={messageBody} onChange={e => setMessageBody(e.target.value)} placeholder="Escribe un mensaje…" /><button type="submit" disabled={busy || !messageBody.trim()} aria-label="Enviar mensaje">➤</button></form>
     </section>

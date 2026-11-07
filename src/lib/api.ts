@@ -1,11 +1,21 @@
+import {demoProviders} from './demo';
 import { createClient } from '@supabase/supabase-js';
-import type { Category, Municipality, Provider, ServiceRequest, Quote, Job, Ticket, PendingProvider, Address, Review, OwnReview, ModerationReview, Notification, Report, JobEvent, JobMessage, SupportMessage, SupportThread, NotificationPreferences, Appeal, PendingAppeal, OperationalMetrics } from './types';
+import { Capacitor } from '@capacitor/core';
+import { sessionStorage } from './session-storage';
+import type { Category, Municipality, Provider, ServiceRequest, Quote, Job, Ticket, PendingProvider, Address, Review, OwnReview, ModerationReview, Notification, Report, JobEvent, JobMessage, SupportMessage, SupportThread, NotificationPreferences, Appeal, PendingAppeal, OperationalMetrics, OperationQueueItem, OperationDecision, ProviderIntake, Promotion } from './types';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 export const configured = Boolean(url && key);
 export const db = configured ? createClient(url, key, {
-  auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true, flowType: 'pkce' },
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    storage: sessionStorage,
+    detectSessionInUrl: !Capacitor.isNativePlatform(),
+    flowType: 'pkce',
+    experimental: { appendPkceFlowIdToRedirects: true },
+  },
 }) : null;
 
 function requireDb() {
@@ -18,28 +28,33 @@ function value<T>(result: { data: T | null; error: { message: string } | null })
   return result.data;
 }
 
-export async function catalog(): Promise<{ categories: Category[]; municipalities: Municipality[]; providers: Provider[]; reviews: Review[] }> {
+export async function catalog(): Promise<{ categories: Category[]; municipalities: Municipality[]; providers: Provider[]; reviews: Review[]; promotions: Promotion[] }> {
   const client = requireDb();
-  const [categoriesResult, municipalitiesResult, providersResult, linksResult, reviewsResult] = await Promise.all([
+  const [categoriesResult, municipalitiesResult, providersResult, linksResult, reviewsResult, promotionsResult, demoEnabledResult, demoAvailabilityResult, caseReviewsResult] = await Promise.all([
     client.from('categories').select('slug,name,position').order('position'),
     client.from('municipalities').select('slug,name,position').order('position'),
-    client.from('provider_profiles').select('id,display_name,bio,municipality_slug,approval_status,available,years_experience,specialties,photo_paths')
-      .eq('approval_status', 'approved').eq('available', true).order('created_at', { ascending: false }).limit(100),
+    client.from('provider_profiles').select('id,display_name,bio,municipality_slug,approval_status,available,years_experience,specialties,photo_paths,public_latitude,public_longitude,profile_photo_path,price_min,price_max,price_unit')
+      .eq('approval_status', 'approved').order('created_at', { ascending: false }).limit(100),
     client.from('provider_categories').select('provider_id,category_slug'),
-    client.rpc('published_reviews')
+    client.rpc('published_reviews'),
+    client.rpc('active_promotions'),
+    client.rpc('demo_catalog_enabled'),
+    client.rpc('demo_availability'),
+    client.rpc('service_case_reviews')
   ]);
+  const availability = await client.rpc('provider_availability');
   const categories = value(categoriesResult) as Category[];
   const municipalities = value(municipalitiesResult) as Municipality[];
   const links = value(linksResult) as { provider_id: string; category_slug: string }[];
   const providers = (value(providersResult) as Omit<Provider, 'categories'>[]).map(p => ({
-    ...p, categories: links.filter(link => link.provider_id === p.id).map(link => link.category_slug)
+    ...p, ...(availability.data?.find((a: {provider_id:string}) => a.provider_id === p.id) ?? {}), categories: links.filter(link => link.provider_id === p.id).map(link => link.category_slug)
   }));
-  return { categories, municipalities, providers, reviews: value(reviewsResult) as Review[] };
+  return { categories, municipalities, providers: demoEnabledResult.data === true ? [...providers,...demoProviders.map(p=>({...p,...(demoAvailabilityResult.data?.find((a:{provider_id:string})=>a.provider_id===p.id)??{})}))] : providers, reviews: [...value(reviewsResult) as Review[],...(caseReviewsResult.error ? [] : caseReviewsResult.data as Review[])], promotions: promotionsResult.error && ['PGRST202','42883'].includes(promotionsResult.error.code) ? [] : value(promotionsResult) as Promotion[] };
 }
 
 export async function saveProvider(input: {
   id: string; display_name: string; bio: string; municipality_slug: string;
-  available: boolean; categories: string[]; exists: boolean; years_experience: number | null; specialties: string[]; photo_paths: string[];
+  available: boolean; categories: string[]; exists: boolean; price_min?:number|null;price_max?:number|null;price_unit?:string; years_experience: number | null; specialties: string[]; photo_paths: string[]; public_latitude?: number | null; public_longitude?: number | null; profile_photo_path?: string | null;
 }) {
   const client = requireDb();
   const { categories, exists, ...profile } = input;
@@ -49,12 +64,14 @@ export async function saveProvider(input: {
     void _id;
     value(await client.from('provider_profiles').update(editable).eq('id', input.id).select('id').single());
   }
-  else value(await client.from('provider_profiles').insert(profile).select('id').single());
-  const { error: deleteError } = await client.from('provider_categories').delete().eq('provider_id', input.id);
-  if (deleteError) throw new Error(deleteError.message);
-  const { error: insertError } = await client.from('provider_categories')
-    .insert(categories.map(category_slug => ({ provider_id: input.id, category_slug })));
-  if (insertError) throw new Error(insertError.message);
+  else {
+    // New registrations retain the existing INSERT scope; price editing is a separate action on an owned profile.
+    const {price_min:_min,price_max:_max,price_unit:_unit,...registration}=profile;
+    void _min;void _max;void _unit;
+    value(await client.from('provider_profiles').insert(registration).select('id').single());
+  }
+  const { error } = await client.rpc('save_my_provider_categories', {p_categories: categories});
+  if (error) throw new Error(error.message);
 }
 
 export async function uploadProviderPhoto(userId: string, file: File): Promise<string> {
@@ -67,6 +84,7 @@ export async function uploadProviderPhoto(userId: string, file: File): Promise<s
 }
 
 export function providerPhotoUrl(path: string): string {
+  if (/^\/images\/[a-z-]+\.(jpg|png|webp)$/.test(path)) return path;
   return requireDb().storage.from('provider-photos').getPublicUrl(path).data.publicUrl;
 }
 
@@ -169,6 +187,9 @@ export async function exportMyData(userId: string, email: string | undefined) {
     account: { id: userId, email: email ?? null },
     notice: 'Incluye registros propios y datos de servicios en los que participas, limitados por los permisos de tu sesión. No contiene registros de terceros ajenos a tu cuenta.',
     profile: profile.data,
+    visibility: value(await client.rpc('my_visibility_export')),
+    demo_bookings: value(await client.rpc('my_demo_bookings_export')),
+    service_cases: value(await client.rpc('my_service_cases_export')),
     provider_profile: provider.data,
     provider_categories: providerCategories.data ?? [],
     service_requests: requests,
@@ -294,4 +315,42 @@ export async function reviewReportAppeal(id: string, status: 'accepted' | 'rejec
 }
 export async function operationalMetrics() {
   return value(await requireDb().rpc('operational_metrics')) as OperationalMetrics;
+}
+export async function operationsQueue() {
+  return value(await requireDb().rpc('operations_queue')) as OperationQueueItem[];
+}
+export async function operationHistory() {
+  return value(await requireDb().rpc('operation_history')) as OperationDecision[];
+}
+export async function reviewOperationItem(itemType: 'request' | 'job', entityId: string, status: 'approved' | 'rejected', reason: string) {
+  const { error } = await requireDb().rpc('review_operation_item', {
+    p_item_type: itemType, p_entity_id: entityId, p_status: status, p_reason: reason
+  });
+  if (error) throw new Error(error.message);
+}
+export async function providerIntakes() {
+  return value(await requireDb().rpc('provider_intakes')) as ProviderIntake[];
+}
+export async function createProviderIntake(input: { displayName: string; municipalitySlug: string; categorySlugs: string[]; notes: string }) {
+  return value(await requireDb().rpc('create_provider_intake', {
+    p_display_name: input.displayName, p_municipality_slug: input.municipalitySlug,
+    p_category_slugs: input.categorySlugs, p_notes: input.notes
+  })) as string;
+}
+export async function updateProviderIntake(id: string, status: 'invited' | 'archived') {
+  const { error } = await requireDb().rpc('update_provider_intake', { p_id: id, p_status: status });
+  if (error) throw new Error(error.message);
+}
+export async function operationsPromotions() {
+  return value(await requireDb().rpc('operations_promotions')) as Promotion[];
+}
+export async function createPromotion(input: { title: string; body: string; audience: Promotion['audience']; startsAt: string | null; endsAt: string | null }) {
+  return value(await requireDb().rpc('create_promotion', {
+    p_title: input.title, p_body: input.body, p_audience: input.audience,
+    p_starts_at: input.startsAt, p_ends_at: input.endsAt
+  })) as string;
+}
+export async function setPromotionStatus(id: string, status: 'draft' | 'active' | 'paused') {
+  const { error } = await requireDb().rpc('set_promotion_status', { p_id: id, p_status: status });
+  if (error) throw new Error(error.message);
 }

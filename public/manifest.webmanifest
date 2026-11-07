@@ -1,9 +1,9 @@
 {
   "name": "YoResuelvo!",
   "short_name": "YoResuelvo!",
-  "version": "0.3.1",
+  "version": "0.3.12",
   "description": "Servicios locales en Delicias y la región.",
-  "start_url": "/landing.html",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#FFF7ED",

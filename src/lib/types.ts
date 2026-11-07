@@ -3,7 +3,8 @@ export type Municipality = { slug: string; name: string; position: number };
 export type Provider = {
   id: string; display_name: string; bio: string; municipality_slug: string;
   approval_status: 'pending' | 'approved' | 'rejected' | 'suspended'; available: boolean;
-  categories: string[];
+  categories: string[]; price_min?:number|null; price_max?:number|null; price_unit?:string;
+  public_latitude?: number | null; public_longitude?: number | null; profile_photo_path?: string | null; availability?: string; next_available_at?: string | null;
   years_experience?: number | null; specialties?: string[]; photo_paths?: string[];
   /** Approximate coordinates used only by local/test fixtures; never persisted to provider profiles. */
   demo_location?: { latitude: number; longitude: number };
@@ -11,7 +12,7 @@ export type Provider = {
 export type ServiceRequest = {
   id: string; client_id: string; category_slug: string; municipality_slug: string;
   title: string; description: string; preferred_at: string | null;
-  status: string; created_at: string;
+  status: string; created_at: string; operations_status?: 'pending' | 'approved' | 'rejected';
 };
 export type Quote = {
   id: string; request_id: string; provider_id: string; version: number; scope: string;
@@ -21,7 +22,8 @@ export type Quote = {
 };
 export type Job = {
   id: string; request_id: string; quote_version_id: string; client_id: string;
-  provider_id: string; scheduled_at: string | null; status: string; created_at: string;
+  provider_id: string; scheduled_at: string | null; scheduled_end_at?: string | null; status: string; created_at: string;
+  operations_status?: 'pending' | 'approved' | 'rejected';
 };
 export type Ticket = {
   id: string; job_id: string | null; client_id: string | null; provider_id: string | null;
@@ -56,4 +58,18 @@ export type OperationalMetrics = {
   providers_active: number; jobs_completed: number; jobs_disputed: number; reports_open: number;
   appeals_open: number; quote_sample_size: number; median_first_quote_minutes: number | null;
   providers_by_area: ProviderAreaCount[];
+};
+export type OperationQueueItem = {
+  item_type: 'request' | 'job'; entity_id: string; title: string; detail: string;
+  client_id: string; provider_id: string | null; municipality_slug: string;
+  category_slug: string; created_at: string; operations_status: 'pending' | 'approved' | 'rejected';
+};
+export type OperationDecision = { entity_type: 'request' | 'job'; entity_id: string; status: 'approved' | 'rejected'; reason: string; reviewer_id: string; created_at: string };
+export type ProviderIntake = {
+  id: string; display_name: string; municipality_slug: string; category_slugs: string[];
+  notes: string; status: 'registered' | 'invited' | 'archived'; created_at: string;
+};
+export type Promotion = {
+  id: string; title: string; body: string; audience: 'all' | 'clients' | 'providers';
+  status?: 'draft' | 'active' | 'paused'; starts_at: string | null; ends_at: string | null; created_at?: string;
 };

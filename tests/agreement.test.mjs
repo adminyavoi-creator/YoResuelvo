@@ -1,0 +1,13 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile,mkdir,writeFile,rm} from 'node:fs/promises';
+import ts from 'typescript';
+const temp=new URL('../node_modules/.cache/yoresuelvo-agreement.mjs',import.meta.url);
+await mkdir(new URL('.',temp),{recursive:true});
+const source=await readFile(new URL('../src/lib/agreement.ts',import.meta.url),'utf8');
+await writeFile(temp,ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText);
+const {agreementHtml,agreementText}=await import(temp.href);
+await rm(temp);
+const data={status:'Servicio apartado',folio:'YR-123',title:'Servicio',client:'Cliente',expert:'Experto',address:'Dirección privada',phone:'6391234567',scope:'Trabajo incluido',materialsNote:'Materiales y exclusiones',labor:1000,materials:500,travel:100,total:1600,start:'Inicio',end:'Fin',accepted:'Aceptación',version:2,terms:'Pago directo al experto'};
+test('el acuerdo compartido conserva folio, partes, contacto, desglose y versión aceptada',()=>{const text=agreementText(data);for(const value of ['YR-123','Cliente','Experto','Dirección privada','6391234567','Trabajo incluido','Materiales y exclusiones','1,600.00','Versión aceptada: 2','Pago directo al experto'])assert.ok(text.includes(value),value);});
+test('el HTML imprimible escapa contenido introducido por las partes',()=>{const html=agreementHtml({...data,scope:'<script>alert("x")</script><img src=x onerror=alert(1)>'});assert.ok(!html.includes('<script>'));assert.ok(!html.includes('<img src=x'));assert.ok(html.includes('&lt;script&gt;'));assert.ok(html.includes('charset="utf-8"'));});
